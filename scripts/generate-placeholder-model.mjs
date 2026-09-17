@@ -23,13 +23,18 @@ const material = new THREE.MeshStandardMaterial({ color: 0x2f7de1, metalness: 0.
 const mesh = new THREE.Mesh(geometry, material)
 mesh.name = 'PlaceholderModel'
 
-const q0 = new THREE.Quaternion()
-const q1 = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI * 2)
-const spinTrack = new THREE.QuaternionKeyframeTrack(
-  '.quaternion',
-  [0, 2],
-  [q0.x, q0.y, q0.z, q0.w, q1.x, q1.y, q1.z, q1.w],
-)
+// A full 360deg turn needs intermediate keyframes, not just start/end: a
+// 360deg rotation quaternion is mathematically identical to the identity
+// quaternion (quaternions double-cover SO(3)), so SLERPing directly from
+// 0deg to "360deg" produces *no visible rotation at all* — that was the
+// actual cause of an earlier "spin doesn't move" bug. Four quarter-turns
+// gives three real intermediate keyframes and a seamless loop back to the
+// start.
+const axis = new THREE.Vector3(0, 1, 0)
+const angles = [0, 0.5, 1, 1.5, 2].map((t) => (t / 2) * Math.PI * 2)
+const times = [0, 0.5, 1, 1.5, 2]
+const quaternionValues = angles.flatMap((angle) => new THREE.Quaternion().setFromAxisAngle(axis, angle).toArray())
+const spinTrack = new THREE.QuaternionKeyframeTrack('.quaternion', times, quaternionValues)
 const clip = new THREE.AnimationClip('Spin', 2, [spinTrack])
 
 const exporter = new GLTFExporter()

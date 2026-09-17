@@ -118,6 +118,21 @@ export class ARStage {
     this.mindar = mindar
     this.resizeListener = capturedResizeListener
 
+    // MindAR's scene ships with zero lights (see mind-ar's three.js
+    // source — it only ever calls `new Scene()`). MeshStandardMaterial
+    // (what the model renderer's GLTF assets use, and what real PBR export
+    // pipelines like Blender's glTF exporter produce) renders pure black
+    // with no light to shade it — model content silently looked like a
+    // black silhouette with no visible shading, which also makes a
+    // rotating near-symmetric shape (an icosahedron) look motionless even
+    // while its animation genuinely advances. A plain ambient + directional
+    // light is enough for AR content composited over a camera feed; this
+    // isn't meant to be the final lighting design.
+    mindar.scene.add(new THREE.AmbientLight(0xffffff, 0.7))
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.2)
+    keyLight.position.set(0.5, 1, 0.8)
+    mindar.scene.add(keyLight)
+
     for (const target of bundle.targets) {
       const anchor = mindar.addAnchor(target.index)
       const handles = target.content.map((item, contentIndex) =>

@@ -144,6 +144,16 @@ Same troubleshooting order as M1/M2, generalized further:
    the M1 section above (unchanged).
 4. If a model doesn't appear, check the console — `modelRenderer.ts` logs a
    clear error for a failed `.glb` load or a missing named `animation`.
+5. **If a model renders solid black:** MindAR's scene ships with zero
+   lights (confirmed by reading its source — it only ever calls
+   `new Scene()`). `MeshStandardMaterial` (what the model renderer's GLTF
+   assets use, and what real PBR export pipelines produce) renders pure
+   black with nothing to shade it. `ARStage.start()` adds a basic ambient +
+   directional light once, but if a future real asset still looks black,
+   check whether it uses an *unlit* material (`MeshBasicMaterial`, or a
+   glTF `KHR_materials_unlit` extension) that this lighting fix wouldn't
+   affect either way, or whether the light intensities need tuning for
+   that asset's exposure.
 5. **New in M3, video-specific:**
    - **Video doesn't autoplay on marker detection (iOS especially).** This
      means the unlock didn't take — check the console for the
