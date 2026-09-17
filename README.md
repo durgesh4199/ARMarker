@@ -5,11 +5,16 @@ overlays 3D models, video, and DOM UI anchored to those markers. Built with
 Vite + React + TypeScript, three.js, and MindAR's three.js image-tracking
 integration (not the A-Frame one).
 
-Status: **Milestone 3 — video renderer, not yet verified on a physical
-phone.** M0-M2 (harness, tracking spike, manifest + model renderer) are
-phone-confirmed; M3 adds the video renderer and the iOS autoplay unlock,
-and needs its own device pass before M4. See `CLAUDE.md` (project brief)
-for the full build order.
+Status: **Milestone 4 — DOM overlay renderer, not yet verified on a
+physical phone.** M0-M3 (harness, tracking spike, manifest + model
+renderer, video renderer) are phone-confirmed. Along the way, two
+device-only bugs surfaced and got fixed: tap-to-interact (added on
+request, ahead of M4/M5) was silently swallowed by an unrelated MindAR
+overlay layer, and models rendered pure black with a non-advancing
+animation until the scene got actual lights and the placeholder's
+animation clip got real intermediate keyframes — see "Tap-to-interact"
+and the model/lighting notes below for what actually broke and why. See
+`CLAUDE.md` (project brief) for the full build order.
 
 ## Stack and pinned versions
 
@@ -225,6 +230,35 @@ Same troubleshooting order as M1/M2, generalized further:
      gap vs. a real bug — see the H.264-in-Chromium note above for exactly
      that check.
 
+## Testing M4 on a physical phone
+
+`00-spin.png`'s target now has a second content item alongside its model:
+a `"Label"` DOM component reading "Spinning!", floating above the
+icosahedron.
+
+1. Point the camera at `00-spin.png`.
+2. Check: does a dark rounded label reading "Spinning!" appear floating
+   above the spinning icosahedron, staying correctly positioned as you
+   move the phone (screen-space projection recalculated every frame, not
+   a one-time placement)? Does it disappear when the marker is lost and
+   reappear correctly when re-found?
+3. Tilt the phone to extreme angles relative to the marker — the label
+   should hide (not render somewhere nonsensical) if the projection ever
+   puts it behind the camera, per `domRenderer.ts`'s `projected.z > 1`
+   check.
+4. This is real text rendered by React (inspect it in devtools — it's an
+   actual `<div>`, not a canvas/WebGL texture), confirming the "no WebGL
+   text" rule actually holds.
+
+Verified structurally with an isolated three.js scene (a headless run
+can't drive real marker detection, so there's no way to get a target
+"found" through the normal flow to check this against): built a scene with
+the real `domRenderer.ts`, called `show()` then `update()`, and confirmed
+the wrapper div's computed screen position matched hand-calculated
+expectations for the anchor's position and camera setup, and that
+`hide()`/pre-`show()` both correctly set `display: none`.
+**Not yet confirmed on physical hardware.**
+
 ### Regenerating markers, bundles, models, and videos
 
 **Marker images → `.mind` files.** `scripts/generate-placeholder-marker.mjs`
@@ -281,18 +315,23 @@ src/
   ar/
     ARStage.ts              # plain TS, owns MindAR + three.js + one anchor per target
     ARView.tsx              # single-div React wrapper, empty-deps effect
+    createScanFrame.ts      # static corner-bracket "point camera here" frame, no sweep
     prepareVideoElements.ts # create + iOS-autoplay-unlock a bundle's <video> elements
     renderers/               # one file per content type (CLAUDE.md section 5)
       modelRenderer.ts       # GLTFLoader + DRACO/KTX2, play/pause named animation clip
       videoRenderer.ts       # THREE.VideoTexture on a plane, pause/resume on lost/found
-      createContentHandle.ts # type -> renderer dispatch; 'dom' lands in M4
+      domRenderer.ts         # screen-space-projected React component, no WebGL text
+      createContentHandle.ts # type -> renderer dispatch
       applyTransform.ts      # position/rotation/scale from a ContentItem
       types.ts                # ContentHandle interface
   content/
     types.ts                # Vec3/ContentItem/TargetEntry/Bundle
     schema.ts                # Zod validation, parseBundle()
+  dom/
+    componentRegistry.ts    # manifest `component` string -> actual React component
+    components/             # the registered components themselves (e.g. Label.tsx)
   debug/                    # ?debug=1 overlay + its store
-  App.tsx                   # M3 placeholder shell; routing/bundle picker land in M5
+  App.tsx                   # M4 placeholder shell; routing/bundle picker land in M5
 scripts/
   generate-placeholder-marker.mjs   # image, given a path + seed (real art isn't ready)
   generate-placeholder-model.mjs    # one-off: produced public/models/placeholder.glb
@@ -306,14 +345,13 @@ public/
   decoders/         # DRACO/KTX2 decoder files, copied from three's examples/jsm/libs/
 ```
 
-Later milestones add `src/ar/renderers/domRenderer.ts` + a component
-registry (M4), and `src/routes/` (M5).
+Later milestones add `src/routes/` (M5).
 
 ## Build order
 
 Each milestone is meant to run on a physical phone before the next starts —
-see the project brief for the full list. Current: **M0-M2 done**, confirmed
-on a physical phone; **M3 built, awaiting physical-device confirmation**.
-Next after that: **M4**, the DOM overlay renderer (screen-space projection
-of an anchor's position, plus the component registry that maps a
-manifest's `component` string to an actual React component).
+see the project brief for the full list. Current: **M0-M3 done**, confirmed
+on a physical phone (plus tap-to-interact, added ahead of schedule and now
+also confirmed); **M4 built, awaiting physical-device confirmation**. Next
+after that: **M5**, the app shell — routing, bundle picker, how-to-scan
+screen, transitions, loading states.

@@ -48,6 +48,7 @@ interface TargetState {
 // targets — see the build order in CLAUDE.md).
 export class ARStage {
   private container: HTMLElement
+  private domOverlayContainer: HTMLElement
   private mindar: MindARThree | null = null
   private renderLoopId: number | null = null
   private resizeListener: EventListenerOrEventListenerObject | null = null
@@ -72,8 +73,14 @@ export class ARStage {
     error: new Set(),
   }
 
-  constructor(container: HTMLElement) {
+  // The AR canvas's own container and a separate sibling layer for DOM
+  // overlay content — CLAUDE.md section 4 requires the two to stay
+  // separate ("React UI overlays sit in a sibling fixed-position layer
+  // above the canvas") so overlay elements can have pointer-events: auto
+  // per-control without that fighting the canvas's own hit-testing.
+  constructor(container: HTMLElement, domOverlayContainer: HTMLElement) {
     this.container = container
+    this.domOverlayContainer = domOverlayContainer
   }
 
   on<K extends ARStageEvent>(event: K, cb: (...args: ARStageEventMap[K]) => void) {
@@ -161,7 +168,14 @@ export class ARStage {
     for (const target of bundle.targets) {
       const anchor = mindar.addAnchor(target.index)
       const handles = target.content.map((item, contentIndex) =>
-        createContentHandle(item, anchor.group, mindar.renderer, options.videoElements?.get(videoElementKey(target.index, contentIndex))),
+        createContentHandle(
+          item,
+          anchor.group,
+          mindar.renderer,
+          mindar.camera,
+          this.domOverlayContainer,
+          options.videoElements?.get(videoElementKey(target.index, contentIndex)),
+        ),
       )
       this.targets.set(target.index, { entry: target, handles })
 

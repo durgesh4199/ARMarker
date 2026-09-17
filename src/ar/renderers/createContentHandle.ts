@@ -1,18 +1,18 @@
 import * as THREE from 'three'
 import type { ContentItem } from '../../content/types'
+import { createDomRenderer } from './domRenderer'
 import { createModelRenderer } from './modelRenderer'
 import type { ContentHandle } from './types'
 import { createVideoRenderer } from './videoRenderer'
 
 const noopHandle: ContentHandle = { show() {}, hide() {}, dispose() {} }
 
-// 'dom' is a real manifest type (see content/types.ts) but its renderer
-// lands in M4 per the build order — a bundle that references it today
-// gets a loud console warning and a no-op handle rather than a crash.
 export function createContentHandle(
   item: ContentItem,
   anchor: THREE.Group,
   renderer: THREE.WebGLRenderer,
+  camera: THREE.Camera,
+  domOverlayContainer: HTMLElement | null,
   videoElement?: HTMLVideoElement,
 ): ContentHandle {
   switch (item.type) {
@@ -25,7 +25,10 @@ export function createContentHandle(
       }
       return createVideoRenderer(item, anchor, videoElement)
     case 'dom':
-      console.warn(`content type "dom" has no renderer yet (lands in M4) — skipping`, item)
-      return noopHandle
+      if (!domOverlayContainer) {
+        console.warn('dom content item has no overlay container to render into — skipping', item)
+        return noopHandle
+      }
+      return createDomRenderer(item, anchor, camera, domOverlayContainer)
   }
 }

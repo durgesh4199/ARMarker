@@ -13,6 +13,12 @@
           "animation": "Spin",
           "position": [0, 0, 0.1],
           "scale": 1
+        },
+        {
+          "type": "dom",
+          "component": "Label",
+          "props": { "text": "Spinning!" },
+          "position": [0, 0.35, 0.1]
         }
       ]
     },

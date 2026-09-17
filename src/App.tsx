@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { createVideoElements, unlockVideoElements } from './ar/prepareVideoElements'
 import { parseBundle } from './content/schema'
 import type { Bundle } from './content/types'
@@ -46,6 +46,12 @@ function App() {
   const [videoElements, setVideoElements] = useState<Map<string, HTMLVideoElement>>()
   const [error, setError] = useState<string | null>(null)
   const setTarget = useDebugStore((s) => s.setTarget)
+  // The DOM-overlay sibling layer CLAUDE.md section 4 calls for — rendered
+  // here (ARView's parent), not inside ARView, which must stay "a single
+  // div ref container and nothing else." pointer-events: none by default;
+  // an individual overlay component opts in with its own pointer-events:
+  // auto if it actually needs clicks.
+  const domOverlayRef = useRef<HTMLDivElement>(null)
 
   // Fetched ahead of the Start tap (not inside its click handler) so that
   // handleStart can unlock video autoplay synchronously within the user
@@ -89,11 +95,13 @@ function App() {
             filterMinCF={filterMinCF}
             filterBeta={filterBeta}
             videoElements={videoElements}
+            domOverlayRef={domOverlayRef}
             onTargetFound={(target) => setTarget(target.index, target.name)}
             onTargetLost={() => setTarget(null, null)}
             onError={(err) => setError(err instanceof Error ? err.message : String(err))}
           />
         </Suspense>
+        <div ref={domOverlayRef} style={{ position: 'fixed', inset: 0, pointerEvents: 'none' }} />
         {error && <div style={errorBannerStyle}>AR failed to start: {error}</div>}
         {debugMode && <DebugOverlay />}
       </>
