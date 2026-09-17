@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { MindARThree } from 'mind-ar/dist/mindar-image-three.prod.js'
 import type { Bundle, TargetEntry } from '../content/types'
+import { videoElementKey } from './prepareVideoElements'
 import { createContentHandle } from './renderers/createContentHandle'
 import type { ContentHandle } from './renderers/types'
 
@@ -24,6 +25,12 @@ export interface ARStageStartOptions {
   // and marker are both still, try a lower minCutOff first.
   filterMinCF?: number
   filterBeta?: number
+  // Pre-created, already autoplay-unlocked <video> elements for this
+  // bundle's video content items, keyed by videoElementKey(targetIndex,
+  // contentIndex) — see prepareVideoElements.ts for why these can't be
+  // created here instead (the unlock has to happen synchronously within
+  // the user gesture that starts the session, before ARStage exists).
+  videoElements?: Map<string, HTMLVideoElement>
 }
 
 interface TargetState {
@@ -113,7 +120,9 @@ export class ARStage {
 
     for (const target of bundle.targets) {
       const anchor = mindar.addAnchor(target.index)
-      const handles = target.content.map((item) => createContentHandle(item, anchor.group, mindar.renderer))
+      const handles = target.content.map((item, contentIndex) =>
+        createContentHandle(item, anchor.group, mindar.renderer, options.videoElements?.get(videoElementKey(target.index, contentIndex))),
+      )
       this.targets.set(target.index, { entry: target, handles })
 
       anchor.onTargetFound = () => {

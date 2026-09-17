@@ -1,11 +1,12 @@
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
+import { createVideoElements, unlockVideoElements } from './ar/prepareVideoElements'
 import { parseBundle } from './content/schema'
 import type { Bundle } from './content/types'
 import { DebugOverlay } from './debug/DebugOverlay'
 import { useDebugStore } from './debug/debugStore'
 import { useDebugMode } from './debug/useDebugMode'
 
-const M2_BUNDLE_URL = '/bundles/m2-demo.json'
+const BUNDLE_URL = '/bundles/m2-demo.json'
 
 // mind-ar pulls in tfjs and its own CV pipeline (~1.5MB) — defer loading it
 // until the user actually taps Start, instead of paying for it on every
@@ -41,27 +42,45 @@ function App() {
   const debugMode = useDebugMode()
   const { filterMinCF, filterBeta } = useFilterParams()
   const [bundle, setBundle] = useState<Bundle | null>(null)
-  const [loadingBundle, setLoadingBundle] = useState(false)
+  const [arStarted, setArStarted] = useState(false)
+  const [videoElements, setVideoElements] = useState<Map<string, HTMLVideoElement>>()
   const [error, setError] = useState<string | null>(null)
   const setTarget = useDebugStore((s) => s.setTarget)
 
-  const handleStart = async () => {
-    setLoadingBundle(true)
-    setError(null)
-    try {
-      const response = await fetch(M2_BUNDLE_URL)
-      if (!response.ok) throw new Error(`failed to fetch ${M2_BUNDLE_URL}: HTTP ${response.status}`)
-      setBundle(parseBundle(await response.json()))
-    } catch (err) {
-      // A malformed manifest or a failed fetch must fail loudly in the UI,
-      // not render nothing (CLAUDE.md section 10).
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setLoadingBundle(false)
+  // Fetched ahead of the Start tap (not inside its click handler) so that
+  // handleStart can unlock video autoplay synchronously within the user
+  // gesture — see prepareVideoElements.ts. A network round-trip between
+  // the click and the play()/pause() unlock calls risks losing the
+  // gesture's "transient activation" window, especially on iOS Safari.
+  useEffect(() => {
+    let cancelled = false
+    fetch(BUNDLE_URL)
+      .then((response) => {
+        if (!response.ok) throw new Error(`failed to fetch ${BUNDLE_URL}: HTTP ${response.status}`)
+        return response.json()
+      })
+      .then((data) => {
+        if (!cancelled) setBundle(parseBundle(data))
+      })
+      .catch((err: unknown) => {
+        // A malformed manifest or a failed fetch must fail loudly in the
+        // UI, not render nothing (CLAUDE.md section 10).
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err))
+      })
+    return () => {
+      cancelled = true
     }
+  }, [])
+
+  const handleStart = () => {
+    if (!bundle) return
+    const elements = createVideoElements(bundle)
+    unlockVideoElements(elements)
+    setVideoElements(elements)
+    setArStarted(true)
   }
 
-  if (bundle) {
+  if (arStarted && bundle) {
     return (
       <>
         <Suspense fallback={<div style={{ padding: 24 }}>Loading AR runtime…</div>}>
@@ -69,6 +88,7 @@ function App() {
             bundle={bundle}
             filterMinCF={filterMinCF}
             filterBeta={filterBeta}
+            videoElements={videoElements}
             onTargetFound={(target) => setTarget(target.index, target.name)}
             onTargetLost={() => setTarget(null, null)}
             onError={(err) => setError(err instanceof Error ? err.message : String(err))}
@@ -83,14 +103,15 @@ function App() {
   return (
     <main style={{ padding: 24, textAlign: 'center' }}>
       <h1>ARMarker</h1>
-      <p>Milestone 2: manifest-driven bundle, two markers, model renderer.</p>
+      <p>Milestone 3: manifest-driven bundle with model and video renderers.</p>
       <p>
-        Print or display <code>targets/m2-demo/00-spin.png</code> and{' '}
-        <code>targets/m2-demo/01-static.png</code>, then tap Start and point the camera at either — a
-        spinning icosahedron on the first, a static one on the second.
+        Print or display <code>targets/m2-demo/00-spin.png</code>,{' '}
+        <code>targets/m2-demo/01-static.png</code>, and <code>targets/m2-demo/02-video.png</code>, then
+        tap Start and point the camera at any of them — a spinning icosahedron, a static one, and a
+        looping test-pattern video, respectively.
       </p>
-      <button type="button" onClick={handleStart} disabled={loadingBundle}>
-        {loadingBundle ? 'Loading…' : 'Start AR'}
+      <button type="button" onClick={handleStart} disabled={!bundle}>
+        {bundle ? 'Start AR' : 'Loading…'}
       </button>
       {error && <p style={{ color: '#b91c1c' }}>{error}</p>}
       {debugMode && <DebugOverlay />}

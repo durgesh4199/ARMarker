@@ -27,6 +27,20 @@
           "scale": 1.5
         }
       ]
+    },
+    {
+      "index": 2,
+      "name": "looping-video",
+      "content": [
+        {
+          "type": "video",
+          "src": "/videos/placeholder.mp4",
+          "alpha": "none",
+          "loop": true,
+          "position": [0, 0, 0.01],
+          "size": [1, 0.5625]
+        }
+      ]
     }
   ]
 }
