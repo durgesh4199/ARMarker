@@ -92,6 +92,16 @@ state. It reads from a small Zustand store (`src/debug/debugStore.ts`);
 `ARStage`'s `targetFound`/`targetLost` events (now carrying the matched
 `TargetEntry`) feed the target fields.
 
+### Scanning frame
+
+While no target is found, a static corner-bracket frame shows on screen to
+guide framing the marker — MindAR's own default "scanning" UI, minus the
+animated scanline it normally sweeps through that frame (removed per
+request). `src/ar/createScanFrame.ts` builds a plain DOM element with just
+the corner brackets and passes its selector as MindARThree's `uiScanning`
+option, so MindAR's own show()/hide() calls (driven by whether any target
+is currently found) toggle this instead of its built-in template.
+
 ## Testing M3 on a physical phone
 
 `public/bundles/m2-demo.json` (the one demo bundle so far) now has three
@@ -143,9 +153,24 @@ made the model visible, and dispatched a real `pointerdown` at the
 canvas's center pixel using the exact same NDC-conversion and
 raycast-then-walk-up-to-handle logic `ARStage` uses. First tap correctly
 hit, changed color, and the scale punch was visible a frame later.
-**Not yet confirmed on physical hardware** — dispatching a synthetic
-`pointerdown` at known coordinates isn't the same as a real touchscreen
-tap on whatever mid-render position the marker actually ends up at.
+
+**On a physical device, taps registered zero hits.** Root cause: MindAR
+always creates a `CSS3DRenderer` (for `CSS3DObject` content this app never
+adds — DOM overlays go through screen-space projection of real React
+elements instead, per section 5.3) and stacks its root element directly on
+top of the WebGL canvas. Three.js's own `CSS3DRenderer` sets that root
+element's `pointer-events: auto` by default, so with nothing overriding
+it, it silently swallowed every tap meant for the canvas underneath — the
+raycasting logic itself was correct, the tap just never reached it. The
+isolated-scene test above didn't catch this because it used a bare
+`WebGLRenderer` with no `CSS3DRenderer` overlay at all, i.e. it wasn't
+actually exercising MindAR's real DOM structure. Fixed by setting
+`mindar.cssRenderer.domElement.style.pointerEvents = 'none'` once, right
+after MindAR is constructed. Confirmed in a headless run against the real
+app: `document.elementFromPoint()` at the canvas's center now returns the
+`<canvas>` itself instead of the CSS3D overlay div.
+**Re-confirm on a physical device** — a headless run can prove the DOM
+structure changed, not that a real touchscreen tap now lands correctly.
 
 This was verified structurally: build succeeds, and a headless-Chromium run
 with a fake camera device fetches the manifest, creates and unlocks all

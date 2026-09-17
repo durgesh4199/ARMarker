@@ -18,9 +18,12 @@ declare module 'mind-ar/dist/mindar-image-three.prod.js' {
     container: HTMLElement
     imageTargetSrc: string
     maxTrack?: number
-    uiLoading?: 'yes' | 'no'
-    uiScanning?: 'yes' | 'no'
-    uiError?: 'yes' | 'no'
+    // 'yes' uses mind-ar's built-in template, 'no' disables it, and any
+    // other string is a CSS selector for a custom element whose
+    // hidden-class gets toggled the same way (see mind-ar's src/ui/ui.js).
+    uiLoading?: 'yes' | 'no' | string
+    uiScanning?: 'yes' | 'no' | string
+    uiError?: 'yes' | 'no' | string
     filterMinCF?: number | null
     filterBeta?: number | null
     warmupTolerance?: number | null

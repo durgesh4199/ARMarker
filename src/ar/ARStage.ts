@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { MindARThree } from 'mind-ar/dist/mindar-image-three.prod.js'
 import type { Bundle, TargetEntry } from '../content/types'
+import { createScanFrame } from './createScanFrame'
 import { videoElementKey } from './prepareVideoElements'
 import { createContentHandle } from './renderers/createContentHandle'
 import type { ContentHandle } from './renderers/types'
@@ -56,6 +57,7 @@ export class ARStage {
   private raycaster = new THREE.Raycaster()
   private interactionCanvas: HTMLCanvasElement | null = null
   private pointerDownHandler: ((event: PointerEvent) => void) | null = null
+  private removeScanFrame: (() => void) | null = null
   // True from the moment start() is called until mindar.start() has
   // settled (resolved or rejected). MindARThree.start() has no
   // cancellation support, so a dispose() that lands mid-flight (React 18
@@ -107,6 +109,14 @@ export class ARStage {
       return originalAddEventListener(type, listener, addOptions)
     }) as typeof window.addEventListener
 
+    // MindAR's default scanning UI includes an animated sweeping scanline
+    // on top of the static corner-bracket frame. Swap in a frame-only
+    // version — same corner brackets, no sweep — via a custom element and
+    // selector; MindAR's own show()/hide() calls (driven by whether any
+    // target is found) drive this exactly like its default template.
+    const scanFrame = createScanFrame()
+    this.removeScanFrame = scanFrame.remove
+
     let mindar: MindARThree
     try {
       mindar = new MindARThree({
@@ -114,12 +124,24 @@ export class ARStage {
         imageTargetSrc: bundle.mindFile,
         filterMinCF: options.filterMinCF ?? null,
         filterBeta: options.filterBeta ?? null,
+        uiScanning: scanFrame.selector,
       })
     } finally {
       window.addEventListener = originalAddEventListener
     }
     this.mindar = mindar
     this.resizeListener = capturedResizeListener
+
+    // MindAR always creates a CSS3DRenderer (for CSS3DObject content we
+    // never add — DOM overlays here go through screen-space projection of
+    // real React elements instead, see CLAUDE.md section 5.3) and stacks
+    // its root element directly on top of the WebGL canvas. That root
+    // element defaults to pointer-events: auto (three.js's own
+    // CSS3DRenderer sets this), so with nothing telling it otherwise it
+    // silently swallows every tap meant for the canvas underneath —
+    // confirmed on a physical device: tap-to-interact registered zero
+    // hits despite the raycasting logic itself being correct.
+    mindar.cssRenderer.domElement.style.pointerEvents = 'none'
 
     // MindAR's scene ships with zero lights (see mind-ar's three.js
     // source — it only ever calls `new Scene()`). MeshStandardMaterial
@@ -241,6 +263,10 @@ export class ARStage {
       this.interactionCanvas.removeEventListener('pointerdown', this.pointerDownHandler)
       this.interactionCanvas = null
       this.pointerDownHandler = null
+    }
+    if (this.removeScanFrame) {
+      this.removeScanFrame()
+      this.removeScanFrame = null
     }
     try {
       this.mindar?.stop()
