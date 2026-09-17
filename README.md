@@ -114,6 +114,38 @@ compiled together):
    re-found? Does it loop seamlessly?
 5. Add `?debug=1` and confirm the target name field shows
    `2 (looping-video)` while that marker is in view.
+6. **Tap the spinning icosahedron on `00-spin.png`** while it's anchored
+   and visible: it should flash a different solid color and give a quick
+   scale "punch" (bigger then settling back). This is a tap-to-interact
+   demo (see below), not part of the original milestone list — it exists
+   to prove the AR scene graph is properly hit-testable, which any future
+   interactive content depends on.
+
+### Tap-to-interact
+
+`ARStage` raycasts from a `pointerdown` on the AR canvas into the scene
+against whatever content handles expose both `object` (the root to
+hit-test) and `onInteract()` (what to do on a hit) — see the `ContentHandle`
+doc comment in `src/ar/renderers/types.ts`. Only `modelRenderer.ts` wires
+this up right now, with a hardcoded demo behavior (cycle through a color
+palette, quick scale punch via a timed curve in its existing `update()`
+hook) — this isn't a manifest feature. If per-content interactivity turns
+out to be something the app actually needs, it belongs as a `ContentItem`
+field (e.g. an `onTap` behavior name resolved through a small registry,
+the same pattern M4's DOM component registry will use), not hardcoded in
+one renderer.
+
+Verified with the same isolated-scene technique used for the lighting/
+animation fixes above (a headless run can't drive real marker detection,
+so the object's never actually anchored/visible to click on through the
+normal flow): built a minimal scene with the real `modelRenderer.ts`,
+made the model visible, and dispatched a real `pointerdown` at the
+canvas's center pixel using the exact same NDC-conversion and
+raycast-then-walk-up-to-handle logic `ARStage` uses. First tap correctly
+hit, changed color, and the scale punch was visible a frame later.
+**Not yet confirmed on physical hardware** — dispatching a synthetic
+`pointerdown` at known coordinates isn't the same as a real touchscreen
+tap on whatever mid-render position the marker actually ends up at.
 
 This was verified structurally: build succeeds, and a headless-Chromium run
 with a fake camera device fetches the manifest, creates and unlocks all

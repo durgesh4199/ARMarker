@@ -23,6 +23,16 @@ function getGLTFLoader(renderer: THREE.WebGLRenderer): GLTFLoader {
   return loader
 }
 
+function hasColor(material: THREE.Material): material is THREE.Material & { color: THREE.Color } {
+  return (material as { color?: unknown }).color instanceof THREE.Color
+}
+
+// Deliberately excludes the placeholder's own blue (0x2f7de1) — the first
+// tap needs to look different immediately, not cycle back to the color
+// that was already there.
+const TAP_PALETTE = [0xe15c4f, 0x4fe17d, 0xe1c94f, 0xb14fe1]
+const PUNCH_DURATION = 0.35
+
 // GLTFLoader.load() is async and there's no reason to block the render
 // loop on it — the handle is usable immediately, and any show()/hide()
 // called before the model finishes loading is remembered and applied once
@@ -32,6 +42,7 @@ export function createModelRenderer(item: ContentItem, anchor: THREE.Group, rend
 
   const group = new THREE.Group()
   applyTransform(group, item)
+  const baseScale = group.scale.clone()
   anchor.add(group)
 
   let disposed = false
@@ -40,6 +51,9 @@ export function createModelRenderer(item: ContentItem, anchor: THREE.Group, rend
   let action: THREE.AnimationAction | null = null
   const disposableMaterials = new Set<THREE.Material>()
   const disposableGeometries = new Set<THREE.BufferGeometry>()
+  const colorMaterials: (THREE.Material & { color: THREE.Color })[] = []
+  let tapColorIndex = -1
+  let punchElapsed = -1 // -1 means no punch in progress
 
   getGLTFLoader(renderer).load(
     item.src,
@@ -54,6 +68,7 @@ export function createModelRenderer(item: ContentItem, anchor: THREE.Group, rend
         disposableGeometries.add(obj.geometry)
         for (const material of Array.isArray(obj.material) ? obj.material : [obj.material]) {
           disposableMaterials.add(material)
+          if (hasColor(material)) colorMaterials.push(material)
         }
       })
 
@@ -74,6 +89,7 @@ export function createModelRenderer(item: ContentItem, anchor: THREE.Group, rend
   )
 
   return {
+    object: group,
     show() {
       visible = true
       group.visible = true
@@ -84,8 +100,33 @@ export function createModelRenderer(item: ContentItem, anchor: THREE.Group, rend
       group.visible = false
       if (action) action.paused = true
     },
+    // Demo interaction, just to prove tap-to-object hit-testing works end
+    // to end (raycasting is ARStage's job — see its pointerdown handling):
+    // cycle the material through a small palette and give it a quick
+    // scale punch. Not manifest-driven; if per-content interactivity ends
+    // up being a real feature rather than a one-off check, it belongs as
+    // a ContentItem field, not hardcoded here.
+    onInteract() {
+      if (colorMaterials.length > 0) {
+        tapColorIndex = (tapColorIndex + 1) % TAP_PALETTE.length
+        for (const material of colorMaterials) material.color.setHex(TAP_PALETTE[tapColorIndex])
+      }
+      punchElapsed = 0
+    },
     update(deltaSeconds) {
       mixer?.update(deltaSeconds)
+
+      if (punchElapsed >= 0) {
+        punchElapsed += deltaSeconds
+        if (punchElapsed >= PUNCH_DURATION) {
+          punchElapsed = -1
+          group.scale.copy(baseScale)
+        } else {
+          const t = punchElapsed / PUNCH_DURATION
+          const bump = Math.sin(t * Math.PI) * 0.4
+          group.scale.copy(baseScale).multiplyScalar(1 + bump)
+        }
+      }
     },
     dispose() {
       disposed = true

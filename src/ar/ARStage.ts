@@ -53,6 +53,9 @@ export class ARStage {
   private disposed = false
   private clock = new THREE.Clock()
   private targets = new Map<number, TargetState>()
+  private raycaster = new THREE.Raycaster()
+  private interactionCanvas: HTMLCanvasElement | null = null
+  private pointerDownHandler: ((event: PointerEvent) => void) | null = null
   // True from the moment start() is called until mindar.start() has
   // settled (resolved or rejected). MindARThree.start() has no
   // cancellation support, so a dispose() that lands mid-flight (React 18
@@ -150,6 +153,50 @@ export class ARStage {
       }
     }
 
+    // Tap-to-interact: any content handle that exposes both `object` and
+    // `onInteract` gets hit-tested on pointerdown. Raycasting an invisible
+    // object (marker not currently found) naturally intersects nothing —
+    // three.js's Raycaster skips objects with visible === false — so
+    // there's no need to separately check whether a target is anchored.
+    const canvas = mindar.renderer.domElement
+    const pointer = new THREE.Vector2()
+    const onPointerDown = (event: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect()
+      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+      this.raycaster.setFromCamera(pointer, mindar.camera)
+
+      const objectToHandle = new Map<THREE.Object3D, ContentHandle>()
+      const interactiveObjects: THREE.Object3D[] = []
+      for (const { handles } of this.targets.values()) {
+        for (const handle of handles) {
+          if (handle.object && handle.onInteract) {
+            interactiveObjects.push(handle.object)
+            objectToHandle.set(handle.object, handle)
+          }
+        }
+      }
+      if (interactiveObjects.length === 0) return
+
+      const hit = this.raycaster.intersectObjects(interactiveObjects, true)[0]
+      if (!hit) return
+
+      // The raycast hits a leaf mesh, not necessarily the root object
+      // registered above, so walk up to find which handle it belongs to.
+      let node: THREE.Object3D | null = hit.object
+      while (node) {
+        const handle = objectToHandle.get(node)
+        if (handle) {
+          handle.onInteract?.()
+          return
+        }
+        node = node.parent
+      }
+    }
+    canvas.addEventListener('pointerdown', onPointerDown)
+    this.interactionCanvas = canvas
+    this.pointerDownHandler = onPointerDown
+
     try {
       await mindar.start()
     } catch (error) {
@@ -189,6 +236,11 @@ export class ARStage {
     if (this.resizeListener) {
       window.removeEventListener('resize', this.resizeListener)
       this.resizeListener = null
+    }
+    if (this.interactionCanvas && this.pointerDownHandler) {
+      this.interactionCanvas.removeEventListener('pointerdown', this.pointerDownHandler)
+      this.interactionCanvas = null
+      this.pointerDownHandler = null
     }
     try {
       this.mindar?.stop()
