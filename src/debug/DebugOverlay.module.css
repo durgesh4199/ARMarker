@@ -1,0 +1,13 @@
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 9999;
+  padding: 6px 10px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #0f0;
+  font-family: monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  pointer-events: none;
+}
