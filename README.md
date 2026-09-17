@@ -5,10 +5,9 @@ overlays 3D models, video, and DOM UI anchored to those markers. Built with
 Vite + React + TypeScript, three.js, and MindAR's three.js image-tracking
 integration (not the A-Frame one).
 
-Status: **Milestone 1 — tracking spike.** One hardcoded marker, one
-rotating cube, no manifest yet. **Not yet verified on a physical phone** —
-see "Testing M1" below. See `CLAUDE.md` (project brief) for the full build
-order.
+Status: **Milestone 1 — tracking spike, confirmed on a physical phone.**
+One hardcoded marker, one rotating cube, no manifest yet. See `CLAUDE.md`
+(project brief) for the full build order.
 
 ## Stack and pinned versions
 
@@ -114,9 +113,40 @@ This was verified structurally (build succeeds, headless Chromium with a
 fake camera device runs the full pipeline — camera → MindAR init → `.mind`
 file fetch and parse → render loop — with zero console/page errors, and a
 React 18 StrictMode double-mount in dev settles to exactly one live camera
-track and no leaked `resize` listener) but **not yet on real hardware** —
-that's the one thing only a physical device test can confirm, per the
-brief's build-order rule.
+track and no leaked `resize` listener). **Confirmed on a physical phone**:
+camera + detection + anchoring work end to end.
+
+### If the cube drifts or jitters
+
+Some residual motion is normal for marker-based tracking — but if it's
+more than "some":
+
+1. **Marker feature quality is the first thing to check.**
+   `targets/m1-spike/00-cube-marker.png` is a synthetic placeholder (see
+   below); an earlier version of it packed large overlapping shapes into
+   one corner and left the rest sparse, which visibly drifted because
+   MindAR's tracker had few stable, evenly-spread points to lock onto. The
+   current version stratifies small shapes evenly across the whole image
+   for exactly this reason. If you regenerate it with different parameters,
+   keep that even spread — it matters more than shape count.
+2. **Pose smoothing is tunable without a redeploy.** MindAR runs a
+   [One Euro Filter](https://jaantollander.com/post/noise-filtering-using-one-euro-filter/)
+   over the raw pose matrix every frame — `filterMinCF` controls how much
+   it smooths while relatively still (lower = smoother but more lag),
+   `filterBeta` controls how much a fast pose change is allowed to cut
+   through that smoothing (lower = smoother during motion too, but more
+   lag while moving). MindAR's defaults (`0.001` / `1000`) are tuned
+   loosely for its own demo markers, not this one. Try values live from
+   the phone via query params, e.g.
+   `?filterMinCF=0.0001&filterBeta=200` for heavier smoothing — if the
+   cube drifts while the phone and marker are both still, drop
+   `filterMinCF` first; if it lags noticeably behind real motion, that's
+   the smoothing cost of a lower `filterBeta`.
+3. Physical factors that aren't a code fix: print the marker larger (more
+   marker pixels visible to the camera = more stable features), even
+   lighting without glare, and holding the phone steady — mid-range Android
+   cameras hunt focus/exposure more than flagships, which feeds the tracker
+   slightly different input frame to frame.
 
 ### Regenerating the marker
 
@@ -164,7 +194,7 @@ three content renderers) and `src/routes/`.
 ## Build order
 
 Each milestone is meant to run on a physical phone before the next starts —
-see the project brief for the full list. Current: **M0 done**; **M1 built,
-awaiting physical-device confirmation**. Next: **M2**, the manifest schema,
+see the project brief for the full list. Current: **M0 and M1 done**,
+confirmed on a physical phone. Next: **M2**, the manifest schema,
 Zod validation, and the model (GLTF) renderer, with multiple targets in one
 bundle.

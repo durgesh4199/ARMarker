@@ -22,8 +22,22 @@ const errorBannerStyle = {
   fontSize: 14,
 } as const
 
+// Reads ?filterMinCF=&filterBeta= so the pose-smoothing filter (see
+// ARStage's ARStageStartOptions doc comment) can be tuned live from a
+// phone while watching the cube, without a redeploy per guess.
+function useFilterParams() {
+  const params = new URLSearchParams(window.location.search)
+  const minCF = params.get('filterMinCF')
+  const beta = params.get('filterBeta')
+  return {
+    filterMinCF: minCF !== null ? Number(minCF) : undefined,
+    filterBeta: beta !== null ? Number(beta) : undefined,
+  }
+}
+
 function App() {
   const debugMode = useDebugMode()
+  const { filterMinCF, filterBeta } = useFilterParams()
   const [arStarted, setArStarted] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const setTarget = useDebugStore((s) => s.setTarget)
@@ -34,6 +48,8 @@ function App() {
         <Suspense fallback={<div style={{ padding: 24 }}>Loading AR runtime…</div>}>
           <ARView
             imageTargetSrc={M1_IMAGE_TARGET_SRC}
+            filterMinCF={filterMinCF}
+            filterBeta={filterBeta}
             onTargetFound={() => setTarget(0, 'm1-spike-cube')}
             onTargetLost={() => setTarget(null, null)}
             onError={(err) => setError(err instanceof Error ? err.message : String(err))}

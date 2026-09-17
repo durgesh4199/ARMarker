@@ -9,6 +9,20 @@ type ARStageEventMap = {
 
 type ARStageEvent = keyof ARStageEventMap
 
+export interface ARStageStartOptions {
+  // Forwarded to MindARThree's OneEuroFilter, which smooths the raw pose
+  // matrix every frame. minCutOff is the smoothing strength while roughly
+  // still (lower = smoother but more lag); beta is how much a fast pose
+  // change is allowed to cut through that smoothing (lower = smoother
+  // during motion too, but more lag while moving). MindAR's own defaults
+  // (minCutOff 0.001, beta 1000) are tuned loosely for its own demo
+  // markers — leave unset to use them, or tune here once you can see the
+  // effect live on a device: if the cube drifts/wobbles while the phone
+  // and marker are both still, try a lower minCutOff first.
+  filterMinCF?: number
+  filterBeta?: number
+}
+
 // Plain TS, no React. Owns the MindAR instance, the three.js
 // renderer/scene/camera, the anchor group, the render loop, and the one
 // hardcoded cube for this tracking spike. M2 replaces the hardcoded cube
@@ -51,7 +65,7 @@ export class ARStage {
     for (const cb of this.listeners[event]) (cb as (...args: ARStageEventMap[K]) => void)(...args)
   }
 
-  async start(imageTargetSrc: string) {
+  async start(imageTargetSrc: string, options: ARStageStartOptions = {}) {
     if (this.mindar || this.disposed) return
     this.starting = true
 
@@ -74,7 +88,12 @@ export class ARStage {
 
     let mindar: MindARThree
     try {
-      mindar = new MindARThree({ container: this.container, imageTargetSrc })
+      mindar = new MindARThree({
+        container: this.container,
+        imageTargetSrc,
+        filterMinCF: options.filterMinCF ?? null,
+        filterBeta: options.filterBeta ?? null,
+      })
     } finally {
       window.addEventListener = originalAddEventListener
     }

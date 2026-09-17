@@ -20,50 +20,64 @@ const ctx = canvas.getContext('2d')
 ctx.fillStyle = '#ffffff'
 ctx.fillRect(0, 0, SIZE, SIZE)
 
-// Asymmetric, non-repeating, high-contrast, feature-dense shapes —
-// the trackability constraints from the project brief section 11.3.
-for (let i = 0; i < 120; i++) {
-  const x = rand() * SIZE
-  const y = rand() * SIZE
-  const size = 8 + rand() * 48
-  const shade = rand() < 0.5 ? '#000000' : '#000000'
-  ctx.globalAlpha = 0.85 + rand() * 0.15
-  ctx.fillStyle = shade
-  const shapeType = Math.floor(rand() * 3)
-  if (shapeType === 0) {
-    ctx.beginPath()
-    ctx.arc(x, y, size / 2, 0, Math.PI * 2)
-    ctx.fill()
-  } else if (shapeType === 1) {
-    ctx.save()
-    ctx.translate(x, y)
-    ctx.rotate(rand() * Math.PI)
-    ctx.fillRect(-size / 2, -size / 4, size, size / 2)
-    ctx.restore()
-  } else {
-    ctx.beginPath()
-    ctx.moveTo(x, y)
-    ctx.lineTo(x + size * (rand() - 0.5), y + size)
-    ctx.lineTo(x - size * (rand() - 0.5), y + size)
-    ctx.closePath()
-    ctx.fill()
+// Stratified placement: one small shape per grid cell, jittered within the
+// cell and randomized in size/rotation/type. This keeps trackable features
+// (corners/edges) small and *evenly spread* across the whole marker — the
+// first placeholder packed large overlapping blobs into one corner and left
+// other regions sparse, which starved MindAR's tracker of stable points
+// outside that corner and showed up as pose drift on a real phone. Capping
+// shape size well below the cell size also avoids any shape merging into a
+// low-detail blob the way the old circles did.
+const CELLS = 16
+const CELL = SIZE / CELLS
+
+for (let row = 0; row < CELLS; row++) {
+  for (let col = 0; col < CELLS; col++) {
+    const cx = col * CELL + CELL / 2 + (rand() - 0.5) * CELL * 0.5
+    const cy = row * CELL + CELL / 2 + (rand() - 0.5) * CELL * 0.5
+    const size = CELL * (0.35 + rand() * 0.35)
+
+    ctx.fillStyle = '#000000'
+    ctx.globalAlpha = 0.8 + rand() * 0.2
+
+    const shapeType = Math.floor(rand() * 3)
+    if (shapeType === 0) {
+      ctx.beginPath()
+      ctx.arc(cx, cy, size / 2, 0, Math.PI * 2)
+      ctx.fill()
+    } else if (shapeType === 1) {
+      ctx.save()
+      ctx.translate(cx, cy)
+      ctx.rotate(rand() * Math.PI)
+      ctx.fillRect(-size / 2, -size / 4, size, size / 2)
+      ctx.restore()
+    } else {
+      ctx.beginPath()
+      ctx.moveTo(cx, cy - size / 2)
+      ctx.lineTo(cx + size / 2, cy + size / 2)
+      ctx.lineTo(cx - size / 2, cy + size / 2)
+      ctx.closePath()
+      ctx.fill()
+    }
   }
 }
 ctx.globalAlpha = 1
 
-// A handful of larger anchor shapes to break up any residual regularity
-// and give the tracker strong high-scale features too.
-ctx.fillStyle = '#000000'
-ctx.fillRect(30, 30, 90, 14)
-ctx.fillRect(30, 30, 14, 70)
+// Four asymmetric corner marks (different per corner) so the tracker — and
+// a human glancing at the printed marker — has an unambiguous orientation
+// reference, without introducing any large flat region.
+ctx.fillRect(14, 14, 34, 10)
+ctx.fillRect(14, 14, 10, 34)
 ctx.beginPath()
-ctx.arc(SIZE - 90, SIZE - 90, 46, 0, Math.PI * 2)
+ctx.arc(SIZE - 30, 30, 16, 0, Math.PI * 2)
 ctx.fill()
-ctx.save()
-ctx.translate(SIZE - 70, 90)
-ctx.rotate(0.4)
-ctx.fillRect(-60, -10, 120, 20)
-ctx.restore()
+ctx.fillRect(SIZE - 46, SIZE - 22, 32, 10)
+ctx.beginPath()
+ctx.moveTo(30, SIZE - 44)
+ctx.lineTo(46, SIZE - 14)
+ctx.lineTo(14, SIZE - 14)
+ctx.closePath()
+ctx.fill()
 
 writeFileSync(new URL('../targets/m1-spike/00-cube-marker.png', import.meta.url), canvas.toBuffer('image/png'))
 console.log('wrote targets/m1-spike/00-cube-marker.png')

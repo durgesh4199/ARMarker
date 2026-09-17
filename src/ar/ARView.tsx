@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
-import { ARStage } from './ARStage'
+import { ARStage, type ARStageStartOptions } from './ARStage'
 
-interface ARViewProps {
+interface ARViewProps extends ARStageStartOptions {
   imageTargetSrc: string
   onTargetFound?: () => void
   onTargetLost?: () => void
@@ -14,7 +14,7 @@ interface ARViewProps {
 // callback props are read once at mount time for the same reason; M2, which
 // needs to swap bundles at runtime, will add imperative methods on ARStage
 // instead of relying on effect deps here.
-export function ARView({ imageTargetSrc, onTargetFound, onTargetLost, onError }: ARViewProps) {
+export function ARView({ imageTargetSrc, filterMinCF, filterBeta, onTargetFound, onTargetLost, onError }: ARViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -26,7 +26,7 @@ export function ARView({ imageTargetSrc, onTargetFound, onTargetLost, onError }:
     if (onTargetLost) stage.on('targetLost', onTargetLost)
     if (onError) stage.on('error', onError)
 
-    stage.start(imageTargetSrc).catch((error: unknown) => onError?.(error))
+    stage.start(imageTargetSrc, { filterMinCF, filterBeta }).catch((error: unknown) => onError?.(error))
 
     return () => {
       stage.dispose()
