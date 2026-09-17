@@ -1,9 +1,12 @@
 import * as THREE from 'three'
 import { MindARThree } from 'mind-ar/dist/mindar-image-three.prod.js'
+import type { Bundle, TargetEntry } from '../content/types'
+import { createContentHandle } from './renderers/createContentHandle'
+import type { ContentHandle } from './renderers/types'
 
 type ARStageEventMap = {
-  targetFound: []
-  targetLost: []
+  targetFound: [target: TargetEntry]
+  targetLost: [target: TargetEntry]
   error: [error: unknown]
 }
 
@@ -17,24 +20,32 @@ export interface ARStageStartOptions {
   // during motion too, but more lag while moving). MindAR's own defaults
   // (minCutOff 0.001, beta 1000) are tuned loosely for its own demo
   // markers — leave unset to use them, or tune here once you can see the
-  // effect live on a device: if the cube drifts/wobbles while the phone
+  // effect live on a device: if content drifts/wobbles while the phone
   // and marker are both still, try a lower minCutOff first.
   filterMinCF?: number
   filterBeta?: number
 }
 
+interface TargetState {
+  entry: TargetEntry
+  handles: ContentHandle[]
+}
+
 // Plain TS, no React. Owns the MindAR instance, the three.js
-// renderer/scene/camera, the anchor group, the render loop, and the one
-// hardcoded cube for this tracking spike. M2 replaces the hardcoded cube
-// with the manifest-driven content renderers and grows start() to take a
-// Bundle instead of a single image-target URL.
+// renderer/scene/camera, one anchor group per target in the bundle, the
+// render loop, and every content renderer's resources. M3/M4 add the
+// video and DOM renderers behind the same createContentHandle dispatch;
+// M6 adds lazy per-target asset loading (everything here loads eagerly at
+// bundle start, which is deliberately simpler and fine for a handful of
+// targets — see the build order in CLAUDE.md).
 export class ARStage {
   private container: HTMLElement
   private mindar: MindARThree | null = null
   private renderLoopId: number | null = null
-  private cubeMesh: THREE.Mesh<THREE.BoxGeometry, THREE.MeshNormalMaterial> | null = null
   private resizeListener: EventListenerOrEventListenerObject | null = null
   private disposed = false
+  private clock = new THREE.Clock()
+  private targets = new Map<number, TargetState>()
   // True from the moment start() is called until mindar.start() has
   // settled (resolved or rejected). MindARThree.start() has no
   // cancellation support, so a dispose() that lands mid-flight (React 18
@@ -65,7 +76,7 @@ export class ARStage {
     for (const cb of this.listeners[event]) (cb as (...args: ARStageEventMap[K]) => void)(...args)
   }
 
-  async start(imageTargetSrc: string, options: ARStageStartOptions = {}) {
+  async start(bundle: Bundle, options: ARStageStartOptions = {}) {
     if (this.mindar || this.disposed) return
     this.starting = true
 
@@ -80,17 +91,17 @@ export class ARStage {
     window.addEventListener = ((
       type: string,
       listener: EventListenerOrEventListenerObject,
-      options?: boolean | AddEventListenerOptions,
+      addOptions?: boolean | AddEventListenerOptions,
     ) => {
       if (type === 'resize') capturedResizeListener = listener
-      return originalAddEventListener(type, listener, options)
+      return originalAddEventListener(type, listener, addOptions)
     }) as typeof window.addEventListener
 
     let mindar: MindARThree
     try {
       mindar = new MindARThree({
         container: this.container,
-        imageTargetSrc,
+        imageTargetSrc: bundle.mindFile,
         filterMinCF: options.filterMinCF ?? null,
         filterBeta: options.filterBeta ?? null,
       })
@@ -100,15 +111,20 @@ export class ARStage {
     this.mindar = mindar
     this.resizeListener = capturedResizeListener
 
-    const anchor = mindar.addAnchor(0)
-    const geometry = new THREE.BoxGeometry(0.6, 0.6, 0.6)
-    const material = new THREE.MeshNormalMaterial()
-    this.cubeMesh = new THREE.Mesh(geometry, material)
-    this.cubeMesh.position.set(0, 0, 0.3)
-    anchor.group.add(this.cubeMesh)
+    for (const target of bundle.targets) {
+      const anchor = mindar.addAnchor(target.index)
+      const handles = target.content.map((item) => createContentHandle(item, anchor.group, mindar.renderer))
+      this.targets.set(target.index, { entry: target, handles })
 
-    anchor.onTargetFound = () => this.emit('targetFound')
-    anchor.onTargetLost = () => this.emit('targetLost')
+      anchor.onTargetFound = () => {
+        for (const handle of handles) handle.show()
+        this.emit('targetFound', target)
+      }
+      anchor.onTargetLost = () => {
+        for (const handle of handles) handle.hide()
+        this.emit('targetLost', target)
+      }
+    }
 
     try {
       await mindar.start()
@@ -128,8 +144,12 @@ export class ARStage {
       return
     }
 
+    this.clock.start()
     const tick = () => {
-      if (this.cubeMesh) this.cubeMesh.rotation.y += 0.02
+      const delta = this.clock.getDelta()
+      for (const { handles } of this.targets.values()) {
+        for (const handle of handles) handle.update?.(delta)
+      }
       mindar.renderer.render(mindar.scene, mindar.camera)
       mindar.cssRenderer.render(mindar.cssScene, mindar.camera)
       this.renderLoopId = requestAnimationFrame(tick)
@@ -152,9 +172,10 @@ export class ARStage {
       // stop() reaches into video.srcObject; if getUserMedia never
       // resolved there's no stream to stop, and that's fine.
     }
-    this.cubeMesh?.geometry.dispose()
-    this.cubeMesh?.material.dispose()
-    this.cubeMesh = null
+    for (const { handles } of this.targets.values()) {
+      for (const handle of handles) handle.dispose()
+    }
+    this.targets.clear()
     this.mindar?.renderer.dispose()
     this.mindar = null
   }

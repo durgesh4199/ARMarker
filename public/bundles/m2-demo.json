@@ -1,0 +1,32 @@
+{
+  "id": "m2-demo",
+  "title": "M2 Demo",
+  "mindFile": "/targets/m2-demo.mind",
+  "targets": [
+    {
+      "index": 0,
+      "name": "spinning-icosahedron",
+      "content": [
+        {
+          "type": "model",
+          "src": "/models/placeholder.glb",
+          "animation": "Spin",
+          "position": [0, 0, 0.1],
+          "scale": 1
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "name": "static-icosahedron",
+      "content": [
+        {
+          "type": "model",
+          "src": "/models/placeholder.glb",
+          "position": [0, 0, 0.1],
+          "scale": 1.5
+        }
+      ]
+    }
+  ]
+}

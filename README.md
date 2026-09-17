@@ -5,9 +5,11 @@ overlays 3D models, video, and DOM UI anchored to those markers. Built with
 Vite + React + TypeScript, three.js, and MindAR's three.js image-tracking
 integration (not the A-Frame one).
 
-Status: **Milestone 1 — tracking spike, confirmed on a physical phone.**
-One hardcoded marker, one rotating cube, no manifest yet. See `CLAUDE.md`
-(project brief) for the full build order.
+Status: **Milestone 2 — manifest-driven bundle, not yet verified on a
+physical phone.** M0 and M1 (harness, single hardcoded marker) are
+phone-confirmed; M2 replaces the hardcoded marker with a JSON manifest,
+Zod validation, and the GLTF model renderer, and needs its own device pass
+before M3. See `CLAUDE.md` (project brief) for the full build order.
 
 ## Stack and pinned versions
 
@@ -87,114 +89,138 @@ Chrome). To get a console on the device:
 Append `?debug=1` to the URL to show a fixed-position overlay (top-left)
 with live FPS, the currently detected target index/name, and asset load
 state. It reads from a small Zustand store (`src/debug/debugStore.ts`);
-`ARStage`'s `targetFound`/`targetLost` events feed the target fields as of
-M1.
+`ARStage`'s `targetFound`/`targetLost` events (now carrying the matched
+`TargetEntry`) feed the target fields.
 
-## Testing M1 on a physical phone
+## Testing M2 on a physical phone
 
-M1 is a tracking spike: tap "Start AR" on the home screen, point the camera
-at the marker image, and a cube should appear anchored to it.
+M2 replaces M1's single hardcoded marker with a real manifest-driven
+bundle: `public/bundles/m2-demo.json` describes two targets, both using the
+GLTF model renderer, backed by `public/targets/m2-demo.mind` (both marker
+images compiled together — see below).
 
-1. Print `targets/m1-spike/00-cube-marker.png` (or display it full-screen on
-   another device — printed is what's confirmed to work per the answers in
-   `CLAUDE.md`; on-screen wasn't in scope but will likely work too for a
-   quick check).
-2. Open the app over HTTPS on the phone (see "Testing on a physical phone"
-   above), tap **Start AR**, grant camera permission, and point the camera
-   at the printed marker, filling as much of the frame as practical.
-3. Check: does the cube appear reasonably anchored to the marker (stays put
-   as you move the phone, doesn't drift wildly)? Does it survive occlusion/
-   losing and re-finding the marker without the tab needing a reload? Add
-   `?debug=1` to watch FPS and confirm the target index/name field flips
-   between `—` and `0 (m1-spike-cube)` as the marker comes in and out of
-   view.
+1. Print `targets/m2-demo/00-spin.png` and `targets/m2-demo/01-static.png`
+   (or display full-screen on another device).
+2. Open the app over HTTPS on the phone, tap **Start AR**, grant camera
+   permission, and point the camera at either marker.
+3. Check: does a small blue icosahedron appear anchored to each marker?
+   The one on `00-spin.png` should be continuously rotating (it has an
+   `animation: "Spin"` entry in the manifest); the one on `01-static.png`
+   should hold still and render larger (`scale: 1.5` vs `1`) — that
+   difference is there specifically to prove the manifest's per-target
+   content and transform data actually reaches the renderer, not just that
+   *a* model shows up. Does each stop rendering when its marker is lost and
+   resume correctly when re-found? Try holding both markers in frame at
+   once — both should track and render independently.
+4. Add `?debug=1` and confirm the target index/name field shows
+   `0 (spinning-icosahedron)` or `1 (static-icosahedron)` as appropriate,
+   flipping to `—` when neither marker is visible.
 
-This was verified structurally (build succeeds, headless Chromium with a
-fake camera device runs the full pipeline — camera → MindAR init → `.mind`
-file fetch and parse → render loop — with zero console/page errors, and a
-React 18 StrictMode double-mount in dev settles to exactly one live camera
-track and no leaked `resize` listener). **Confirmed on a physical phone**:
-camera + detection + anchoring work end to end.
+This was verified structurally: build succeeds, and a headless-Chromium run
+with a fake camera device fetches the manifest, validates it, fetches both
+the `.mind` file and the shared `.glb` model, and renders with zero
+console/page errors. **Not yet confirmed on physical hardware** — M1's
+placeholder-marker drift fix (stratified, evenly-spread features) carried
+over to these two markers, but that's only confirmed structurally, not on
+a phone, for this specific pair.
 
-### If the cube drifts or jitters
+### If content drifts, jitters, or one target won't track
 
-Some residual motion is normal for marker-based tracking — but if it's
-more than "some":
+Same troubleshooting order as M1, generalized beyond "the cube":
 
-1. **Marker feature quality is the first thing to check.**
-   `targets/m1-spike/00-cube-marker.png` is a synthetic placeholder (see
-   below); an earlier version of it packed large overlapping shapes into
-   one corner and left the rest sparse, which visibly drifted because
-   MindAR's tracker had few stable, evenly-spread points to lock onto. The
-   current version stratifies small shapes evenly across the whole image
-   for exactly this reason. If you regenerate it with different parameters,
-   keep that even spread — it matters more than shape count.
-2. **Pose smoothing is tunable without a redeploy.** MindAR runs a
-   [One Euro Filter](https://jaantollander.com/post/noise-filtering-using-one-euro-filter/)
-   over the raw pose matrix every frame — `filterMinCF` controls how much
-   it smooths while relatively still (lower = smoother but more lag),
-   `filterBeta` controls how much a fast pose change is allowed to cut
-   through that smoothing (lower = smoother during motion too, but more
-   lag while moving). MindAR's defaults (`0.001` / `1000`) are tuned
-   loosely for its own demo markers, not this one. Try values live from
-   the phone via query params, e.g.
-   `?filterMinCF=0.0001&filterBeta=200` for heavier smoothing — if the
-   cube drifts while the phone and marker are both still, drop
-   `filterMinCF` first; if it lags noticeably behind real motion, that's
-   the smoothing cost of a lower `filterBeta`.
-3. Physical factors that aren't a code fix: print the marker larger (more
-   marker pixels visible to the camera = more stable features), even
-   lighting without glare, and holding the phone steady — mid-range Android
-   cameras hunt focus/exposure more than flagships, which feeds the tracker
-   slightly different input frame to frame.
+1. **Marker feature quality first.** Both `targets/m2-demo/*.png` use the
+   same stratified-shapes generator that fixed M1's drift (see
+   `scripts/generate-placeholder-marker.mjs`'s doc comment) — evenly spread
+   small shapes, no dominant blobs. If a *specific* marker tracks worse
+   than the other, compare them visually first; a bad seed can still
+   produce a weaker pattern than another.
+2. **Pose smoothing is tunable without a redeploy**, via
+   `?filterMinCF=&filterBeta=` query params — see `ARStage`'s
+   `ARStageStartOptions` doc comment for what each one trades off.
+3. Physical factors: marker print size, lighting, camera steadiness — see
+   the M1 section above (unchanged).
+4. **New in M2**: if a model doesn't appear at all (as opposed to
+   drifting), check the browser console first — `modelRenderer.ts` logs a
+   clear error if the `.glb` fails to load or a named `animation` isn't
+   found in the file, rather than failing silently.
 
-### Regenerating the marker
+### Regenerating markers, bundles, and models
 
-`targets/m1-spike/00-cube-marker.png` is a synthetically generated
-placeholder (real marker art isn't ready yet — see `CLAUDE.md`'s answers
-section), built by `scripts/generate-placeholder-marker.mjs`. Compile any
-new or changed source image into the `.mind` file MindAR loads at runtime
-with:
+**Marker images → `.mind` files.** `scripts/generate-placeholder-marker.mjs`
+takes an output path and a seed (real marker art isn't ready yet — see
+`CLAUDE.md`'s answers section):
 
 ```sh
-node scripts/compile-target.mjs m1-spike targets/m1-spike/00-cube-marker.png
+node scripts/generate-placeholder-marker.mjs targets/<bundle-id>/00-name.png <seed>
 ```
 
-This runs MindAR's own offline target compiler (`mind-ar`'s
-`OfflineCompiler`, via `node-canvas` — no network needed) and writes
-`public/targets/m1-spike.mind`. Source images live in `targets/<bundle-id>/`
-(named `00-...`, `01-...` in index order — the index is positional and
-fragile, see `CLAUDE.md` section 3); compiled `.mind` files live in
-`public/targets/` (served at `/targets/<bundle-id>.mind`). Multi-target
-bundles pass every image in index order:
-`node scripts/compile-target.mjs chapter-1 targets/chapter-1/00-*.png targets/chapter-1/01-*.png ...`.
+Then compile every image for a bundle, in index order, into its `.mind`
+file with MindAR's own offline compiler (`mind-ar`'s `OfflineCompiler`, via
+`node-canvas` — no network needed):
 
-Both the source images **and** the compiled `.mind` file are committed
-together, per the brief's rule against committing one without the other —
-the `.mind` file is what the deployed app actually serves, and there's no
-build-time compile step in CI to regenerate it. Re-run the command above
-and commit the result whenever a marker image changes.
+```sh
+node scripts/compile-target.mjs <bundle-id> targets/<bundle-id>/00-*.png targets/<bundle-id>/01-*.png ...
+```
+
+This writes `public/targets/<bundle-id>.mind` (served at
+`/targets/<bundle-id>.mind`). Both the source images **and** the compiled
+`.mind` file are committed together, per the brief's rule against
+committing one without the other — there's no build-time compile step in
+CI to regenerate it, so the committed `.mind` file is what the deployed app
+actually serves. Re-run and commit whenever a marker image changes.
+
+**Bundle manifests** are plain JSON under `public/bundles/`, validated at
+load time against `src/content/schema.ts` — see `public/bundles/m2-demo.json`
+for the shape. A malformed entry (e.g. a `model` item missing `src`) throws
+a specific, path-pointing error instead of silently rendering nothing.
+
+**Models.** `public/models/placeholder.glb` is a synthetically generated
+stand-in (`scripts/generate-placeholder-model.mjs`, using three.js's own
+`GLTFExporter` in Node) — a small icosahedron with a 2-second `"Spin"`
+animation clip. DRACO/KTX2 decoding is wired up (`src/ar/renderers/modelRenderer.ts`)
+even though this particular placeholder doesn't use either compression;
+the decoder files themselves are copied from `three`'s own
+`examples/jsm/libs/` into `public/decoders/` and committed, since they're
+static assets the browser fetches at runtime, not something Vite bundles.
 
 ## Project structure
 
 ```
 src/
-  ar/               # ARStage (plain TS, owns MindAR + three.js) and its React wrapper
-  debug/            # ?debug=1 overlay + its store
-  App.tsx           # M1 placeholder shell; routing/bundle picker land in M5
+  ar/
+    ARStage.ts              # plain TS, owns MindAR + three.js + one anchor per target
+    ARView.tsx              # single-div React wrapper, empty-deps effect
+    renderers/               # one file per content type (CLAUDE.md section 5)
+      modelRenderer.ts       # GLTFLoader + DRACO/KTX2, play/pause named animation clip
+      createContentHandle.ts # type -> renderer dispatch; 'video'/'dom' land in M3/M4
+      applyTransform.ts      # position/rotation/scale from a ContentItem
+      types.ts                # ContentHandle interface
+  content/
+    types.ts                # Vec3/ContentItem/TargetEntry/Bundle
+    schema.ts                # Zod validation, parseBundle()
+  debug/                    # ?debug=1 overlay + its store
+  App.tsx                   # M2 placeholder shell; routing/bundle picker land in M5
 scripts/
-  generate-placeholder-marker.mjs   # one-off: produced targets/m1-spike/00-cube-marker.png
+  generate-placeholder-marker.mjs   # image, given a path + seed (real art isn't ready)
+  generate-placeholder-model.mjs    # one-off: produced public/models/placeholder.glb
   compile-target.mjs                # image(s) -> .mind, run whenever a marker image changes
 targets/            # source marker images, per bundle, git-tracked
+public/
+  bundles/          # manifest JSON, one file per bundle
+  targets/          # compiled .mind files
+  models/           # .glb assets
+  decoders/         # DRACO/KTX2 decoder files, copied from three's examples/jsm/libs/
 ```
 
-Later milestones add `src/content/` (manifest types + Zod schema + the
-three content renderers) and `src/routes/`.
+Later milestones add `src/ar/renderers/videoRenderer.ts` (M3),
+`src/ar/renderers/domRenderer.ts` + a component registry (M4), and
+`src/routes/` (M5).
 
 ## Build order
 
 Each milestone is meant to run on a physical phone before the next starts —
 see the project brief for the full list. Current: **M0 and M1 done**,
-confirmed on a physical phone. Next: **M2**, the manifest schema,
-Zod validation, and the model (GLTF) renderer, with multiple targets in one
-bundle.
+confirmed on a physical phone; **M2 built, awaiting physical-device
+confirmation**. Next after that: **M3**, the video renderer (iOS autoplay
+unlock; the alpha-packed shader path is skipped per the brief's answers —
+no video needs transparency).

@@ -1,20 +1,21 @@
 import { useEffect, useRef } from 'react'
+import type { Bundle, TargetEntry } from '../content/types'
 import { ARStage, type ARStageStartOptions } from './ARStage'
 
 interface ARViewProps extends ARStageStartOptions {
-  imageTargetSrc: string
-  onTargetFound?: () => void
-  onTargetLost?: () => void
+  bundle: Bundle
+  onTargetFound?: (target: TargetEntry) => void
+  onTargetLost?: (target: TargetEntry) => void
   onError?: (error: unknown) => void
 }
 
 // Renders a single container div and nothing else. ARStage is instantiated
 // imperatively in an effect with an empty dependency array and must never
 // be re-created on prop/state changes — see CLAUDE.md section 4. The
-// callback props are read once at mount time for the same reason; M2, which
-// needs to swap bundles at runtime, will add imperative methods on ARStage
-// instead of relying on effect deps here.
-export function ARView({ imageTargetSrc, filterMinCF, filterBeta, onTargetFound, onTargetLost, onError }: ARViewProps) {
+// bundle/callback props are read once at mount time for the same reason;
+// swapping bundles at runtime (M5's bundle picker) will need an imperative
+// method on ARStage instead of relying on effect deps here.
+export function ARView({ bundle, filterMinCF, filterBeta, onTargetFound, onTargetLost, onError }: ARViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -26,7 +27,7 @@ export function ARView({ imageTargetSrc, filterMinCF, filterBeta, onTargetFound,
     if (onTargetLost) stage.on('targetLost', onTargetLost)
     if (onError) stage.on('error', onError)
 
-    stage.start(imageTargetSrc, { filterMinCF, filterBeta }).catch((error: unknown) => onError?.(error))
+    stage.start(bundle, { filterMinCF, filterBeta }).catch((error: unknown) => onError?.(error))
 
     return () => {
       stage.dispose()

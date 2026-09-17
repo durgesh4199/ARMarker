@@ -1,7 +1,20 @@
+// Usage: node scripts/generate-placeholder-marker.mjs <output-path> [seed]
+// Generates a synthetic high-contrast/asymmetric/non-repeating marker image
+// (see CLAUDE.md's answers — real marker art isn't ready yet). Different
+// seeds produce different, still-distinct patterns, which is what a
+// multi-target bundle needs (MindAR has to be able to tell the markers
+// apart from each other, not just track each one individually).
 import { createCanvas } from 'canvas'
 import { writeFileSync } from 'fs'
 
-// Deterministic PRNG so the placeholder is reproducible across regenerations.
+const [outputPath, seedArg] = process.argv.slice(2)
+if (!outputPath) {
+  console.error('Usage: node scripts/generate-placeholder-marker.mjs <output-path> [seed]')
+  process.exit(1)
+}
+const seed = seedArg ? Number(seedArg) : 20260917
+
+// Deterministic PRNG so a given seed reproduces the same image.
 function mulberry32(seed) {
   return () => {
     seed |= 0
@@ -13,7 +26,7 @@ function mulberry32(seed) {
 }
 
 const SIZE = 512
-const rand = mulberry32(20260917)
+const rand = mulberry32(seed)
 const canvas = createCanvas(SIZE, SIZE)
 const ctx = canvas.getContext('2d')
 
@@ -22,8 +35,8 @@ ctx.fillRect(0, 0, SIZE, SIZE)
 
 // Stratified placement: one small shape per grid cell, jittered within the
 // cell and randomized in size/rotation/type. This keeps trackable features
-// (corners/edges) small and *evenly spread* across the whole marker — the
-// first placeholder packed large overlapping blobs into one corner and left
+// (corners/edges) small and *evenly spread* across the whole marker — an
+// earlier version packed large overlapping blobs into one corner and left
 // other regions sparse, which starved MindAR's tracker of stable points
 // outside that corner and showed up as pose drift on a real phone. Capping
 // shape size well below the cell size also avoids any shape merging into a
@@ -79,5 +92,5 @@ ctx.lineTo(14, SIZE - 14)
 ctx.closePath()
 ctx.fill()
 
-writeFileSync(new URL('../targets/m1-spike/00-cube-marker.png', import.meta.url), canvas.toBuffer('image/png'))
-console.log('wrote targets/m1-spike/00-cube-marker.png')
+writeFileSync(new URL('../' + outputPath, import.meta.url), canvas.toBuffer('image/png'))
+console.log(`wrote ${outputPath} (seed ${seed})`)
