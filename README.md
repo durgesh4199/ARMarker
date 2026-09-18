@@ -5,16 +5,17 @@ overlays 3D models, video, and DOM UI anchored to those markers. Built with
 Vite + React + TypeScript, three.js, and MindAR's three.js image-tracking
 integration (not the A-Frame one).
 
-Status: **Milestone 4 — DOM overlay renderer, not yet verified on a
-physical phone.** M0-M3 (harness, tracking spike, manifest + model
-renderer, video renderer) are phone-confirmed. Along the way, two
-device-only bugs surfaced and got fixed: tap-to-interact (added on
-request, ahead of M4/M5) was silently swallowed by an unrelated MindAR
-overlay layer, and models rendered pure black with a non-advancing
-animation until the scene got actual lights and the placeholder's
-animation clip got real intermediate keyframes — see "Tap-to-interact"
-and the model/lighting notes below for what actually broke and why. See
-`CLAUDE.md` (project brief) for the full build order.
+Status: **Milestone 5 — app shell (routing, bundle picker, how-to-scan,
+transitions), not yet verified on a physical phone.** M0-M4 (harness,
+tracking spike, manifest + model/video/DOM renderers, plus tap-to-
+interact added ahead of schedule) are phone-confirmed. Along the way,
+device-only bugs surfaced and got fixed: tap-to-interact was silently
+swallowed by an unrelated MindAR overlay layer, and models rendered pure
+black with a non-advancing animation until the scene got actual lights
+and the placeholder's animation clip got real intermediate keyframes —
+see the "Tap-to-interact" and model/lighting notes further down for what
+actually broke and why. See `CLAUDE.md` (project brief) for the full
+build order.
 
 ## Stack and pinned versions
 
@@ -97,25 +98,47 @@ state. It reads from a small Zustand store (`src/debug/debugStore.ts`);
 `ARStage`'s `targetFound`/`targetLost` events (now carrying the matched
 `TargetEntry`) feed the target fields.
 
-### Scanning frame
+### AR HUD (scanning / found / tracking / lost)
 
-While no target is found, a static corner-bracket frame shows on screen to
-guide framing the marker — MindAR's own default "scanning" UI, minus the
-animated scanline it normally sweeps through that frame (removed per
-request). `src/ar/createScanFrame.ts` builds a plain DOM element with just
-the corner brackets and passes its selector as MindARThree's `uiScanning`
-option, so MindAR's own show()/hide() calls (driven by whether any target
-is currently found) toggle this instead of its built-in template.
+`src/ar/ArHud.tsx` is a real React overlay — MindAR's own built-in
+scanning/loading UI is fully disabled (`uiScanning: 'no'` in
+`ARStage.start()`) in favor of it, since a static template can't do the
+color-coded states below. It subscribes directly to an `ARStage`
+instance (handed to it via `ARView`'s `onStage` callback — see "M5 app
+shell" further down for why that replaced individual
+`onTargetFound`/`onTargetLost`/... props) and renders one of:
+
+- **initializing** — full-screen, shown until `ARStage` emits `ready`
+  (camera live, render loop started).
+- **scanning** — a dim corner-bracket frame + "Point your camera at a
+  marker", shown once ready with nothing found.
+- **found-loading** — the frame turns accent-green with "MARKER FOUND",
+  plus a loading percentage once a target is found but its content
+  (currently just the model renderer) hasn't finished loading yet. Content
+  loads once, eagerly, at bundle start and stays loaded — this is
+  independent of found/lost and never re-fires for the same target, so
+  with the current placeholder assets (tiny, fast to load) this state
+  will often be too brief to actually see; it's there for when real,
+  larger assets replace them.
+- **tracking** — a small "TRACKING · STABLE" pill once that target's
+  content is confirmed ready, no frame (the content itself is now what's
+  visible).
+- **lost** — the frame turns amber with "Lost track — move back into
+  frame". Debounced by 500ms (`LOST_GRACE_MS`) before showing, so
+  marginal tracking flickering found/lost across a couple of frames
+  doesn't flash "lost" for one frame before snapping back.
 
 ## Testing M3 on a physical phone
 
-`public/bundles/m2-demo.json` (the one demo bundle so far) now has three
+`public/bundles/m2-demo.json` ("Full Showcase" in the picker) has three
 targets, backed by `public/targets/m2-demo.mind` (all three marker images
 compiled together):
 
 1. Print `targets/m2-demo/00-spin.png`, `01-static.png`, and
    `02-video.png` (or display full-screen on another device).
-2. Open the app over HTTPS on the phone, tap **Start AR** — this is the
+2. Open the app over HTTPS on the phone, tap through **Start Scanning →
+   Full Showcase → Continue → Got it** (see "Testing M5" below for the
+   full-flow walkthrough) — that "Got it" tap is the
    gesture that also unlocks video autoplay (see below) — grant camera
    permission, and point the camera at each marker in turn.
 3. Check `00-spin.png` and `01-static.png` still behave as in M2 (rotating
@@ -259,6 +282,48 @@ expectations for the anchor's position and camera setup, and that
 `hide()`/pre-`show()` both correctly set `display: none`.
 **Not yet confirmed on physical hardware.**
 
+## Testing M5 on a physical phone
+
+M5 replaces the M0-M4 single-bundle "Start AR" button with the full app
+shell: routing (`react-router`), a real bundle picker (4 bundles now, up
+from the 1 test bundle M2-M4 used), a "how to scan" screen, and
+`motion`-driven transitions between all of them.
+
+1. Open the app over HTTPS on the phone. **Home**: tap "Start Scanning".
+2. **Bundle picker** (`/bundles`): four cards — "Full Showcase" (badged
+   FEATURED — model + video + DOM label, the M2-M4 bundle), "Model
+   Gallery" (two model-only targets), "Video Showcase" (two video-only
+   targets, different sizes), "Label Demo" (two DOM-only targets, no
+   3D/video decode cost at all). Tap one, then "Continue".
+3. **How to scan** (`/how-to-scan/:bundleId`): tap "Got it" — this is the
+   gesture that unlocks video autoplay for whichever bundle you picked
+   (see the M3 section above for why that has to happen here, synchronously,
+   not earlier in the flow).
+4. **AR view** (`/ar/:bundleId`): should show "INITIALIZING CAMERA..."
+   briefly, then the scanning frame. Point the camera at that bundle's
+   markers (under `targets/<bundle-id>/`) and check the AR HUD section
+   above end to end — found-loading (likely brief, see why above),
+   tracking, and lost states, plus the actual content (model/video/label
+   depending on which bundle).
+5. Go back (browser back button) from the AR view, pick a **different**
+   bundle, and confirm its markers work too — each bundle compiles to its
+   own `.mind` file, so this also checks that switching bundles doesn't
+   leak state from the previous one (a fresh `ARStage` is created per AR
+   route visit).
+6. Check the transitions themselves: Home → Bundles → How-to-scan should
+   slide/fade smoothly (`motion`, transform+opacity only). If your OS has
+   "reduce motion" enabled, the slide should drop to a plain fade instead
+   of just looking identical to motion off — that's the reduced-motion
+   variant (`usePageTransition`/`usePrefersReducedMotion`), not a bug.
+
+Verified structurally: build succeeds, and a headless-Chromium run walks
+the entire flow — Home → Bundles (all 4 cards render) → How-to-scan → Got
+it → AR route — for all four bundles, confirming the "INITIALIZING
+CAMERA..." → "Point your camera at a marker" HUD transition and zero
+console/page errors throughout. Real per-bundle marker detection isn't
+checkable this way (see the "AR HUD" and M1-M4 sections above for why).
+**Not yet confirmed on physical hardware.**
+
 ### Regenerating markers, bundles, models, and videos
 
 **Marker images → `.mind` files.** `scripts/generate-placeholder-marker.mjs`
@@ -289,6 +354,13 @@ load time against `src/content/schema.ts` — see `public/bundles/m2-demo.json`
 for the shape. A malformed entry (e.g. a `model` item missing `src`) throws
 a specific, path-pointing error instead of silently rendering nothing.
 
+**The bundle picker catalog** (`public/bundles/catalog.json`, validated by
+`src/content/catalog.ts`) is separate, lighter-weight metadata — just
+`id`/`title`/`description`/`icon`/`manifestUrl`/`markerCount`/`badge` — so
+the picker screen doesn't have to fetch every bundle's full manifest just
+to render its cards. Adding a bundle means adding both: a full manifest
+(this section) and a catalog entry pointing at it.
+
 **Models.** `public/models/placeholder.glb` is a synthetically generated
 stand-in (`scripts/generate-placeholder-model.mjs`, using three.js's own
 `GLTFExporter` in Node) — a small icosahedron with a 2-second `"Spin"`
@@ -315,8 +387,10 @@ src/
   ar/
     ARStage.ts              # plain TS, owns MindAR + three.js + one anchor per target
     ARView.tsx              # single-div React wrapper, empty-deps effect
-    createScanFrame.ts      # static corner-bracket "point camera here" frame, no sweep
+    ArHud.tsx               # scanning/found-loading/tracking/lost overlay (see "AR HUD" above)
+    arSessionStore.ts        # hands the autoplay-unlocked <video> elements from HowToScan to ArRoute
     prepareVideoElements.ts # create + iOS-autoplay-unlock a bundle's <video> elements
+    useFilterParams.ts      # ?filterMinCF=&filterBeta= query-param reader
     renderers/               # one file per content type (CLAUDE.md section 5)
       modelRenderer.ts       # GLTFLoader + DRACO/KTX2, play/pause named animation clip
       videoRenderer.ts       # THREE.VideoTexture on a plane, pause/resume on lost/found
@@ -327,31 +401,42 @@ src/
   content/
     types.ts                # Vec3/ContentItem/TargetEntry/Bundle
     schema.ts                # Zod validation, parseBundle()
+    catalog.ts               # lighter-weight picker metadata + parseCatalog()
   dom/
-    componentRegistry.ts    # manifest `component` string -> actual React component
-    components/             # the registered components themselves (e.g. Label.tsx)
+    iconRegistry.ts          # icon name -> component, used by the picker
+    icons.tsx                 # the actual icon components
+    componentRegistry.ts     # manifest `component` string -> actual React component
+    components/              # the registered components themselves (e.g. Label.tsx)
+    PillButton.tsx            # shared button used by every non-AR screen
+    usePageTransition.ts     # shared motion enter/exit for Home/Bundles/HowToScan
+    usePrefersReducedMotion.ts
+  routes/
+    Home.tsx
+    BundlePicker.tsx
+    HowToScan.tsx
+    ArRoute.tsx               # wires ARView + ArHud together for /ar/:bundleId
   debug/                    # ?debug=1 overlay + its store
-  App.tsx                   # M4 placeholder shell; routing/bundle picker land in M5
+  App.tsx                   # router shell (AnimatePresence + Routes)
 scripts/
   generate-placeholder-marker.mjs   # image, given a path + seed (real art isn't ready)
   generate-placeholder-model.mjs    # one-off: produced public/models/placeholder.glb
   compile-target.mjs                # image(s) -> .mind, run whenever a marker image changes
 targets/            # source marker images, per bundle, git-tracked
 public/
-  bundles/          # manifest JSON, one file per bundle
+  bundles/          # manifest JSON per bundle + catalog.json (picker metadata)
   targets/          # compiled .mind files
   models/           # .glb assets
   videos/           # .mp4 assets
   decoders/         # DRACO/KTX2 decoder files, copied from three's examples/jsm/libs/
 ```
 
-Later milestones add `src/routes/` (M5).
-
 ## Build order
 
 Each milestone is meant to run on a physical phone before the next starts —
-see the project brief for the full list. Current: **M0-M3 done**, confirmed
+see the project brief for the full list. Current: **M0-M4 done**, confirmed
 on a physical phone (plus tap-to-interact, added ahead of schedule and now
-also confirmed); **M4 built, awaiting physical-device confirmation**. Next
-after that: **M5**, the app shell — routing, bundle picker, how-to-scan
-screen, transitions, loading states.
+also confirmed); **M5 built, awaiting physical-device confirmation**. Next
+after that: **M6**, hardening — lazy per-target asset loading (everything
+currently loads eagerly at bundle start), permission-denied and
+unsupported-browser fallback screens, and a real performance pass on a
+mid-range Android.

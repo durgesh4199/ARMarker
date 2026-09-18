@@ -15,4 +15,11 @@ export interface ContentHandle {
   update?(deltaSeconds: number): void
   object?: THREE.Object3D
   onInteract?(): void
+  // Omit both for content with no meaningful loading phase (dom renders
+  // synchronously; video is already preloaded by the autoplay-unlock
+  // step) — ARStage treats a handle without isLoading as always ready.
+  // While isLoading() returns true, loadProgress() is a 0-1 fraction, or
+  // null if indeterminate (e.g. no Content-Length to compute one from).
+  isLoading?(): boolean
+  loadProgress?(): number | null
 }

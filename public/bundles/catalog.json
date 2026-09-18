@@ -1,0 +1,35 @@
+[
+  {
+    "id": "m2-demo",
+    "title": "Full Showcase",
+    "description": "Model, video, and label content together",
+    "icon": "layers",
+    "manifestUrl": "/bundles/m2-demo.json",
+    "markerCount": 3,
+    "badge": "FEATURED"
+  },
+  {
+    "id": "model-gallery",
+    "title": "Model Gallery",
+    "description": "Animated and static 3D models",
+    "icon": "cube",
+    "manifestUrl": "/bundles/model-gallery.json",
+    "markerCount": 2
+  },
+  {
+    "id": "video-showcase",
+    "title": "Video Showcase",
+    "description": "Looping video anchored to a marker",
+    "icon": "play",
+    "manifestUrl": "/bundles/video-showcase.json",
+    "markerCount": 2
+  },
+  {
+    "id": "label-demo",
+    "title": "Label Demo",
+    "description": "Floating DOM UI, no 3D or video",
+    "icon": "tag",
+    "manifestUrl": "/bundles/label-demo.json",
+    "markerCount": 2
+  }
+]

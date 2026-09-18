@@ -1,7 +1,6 @@
 import * as THREE from 'three'
 import { MindARThree } from 'mind-ar/dist/mindar-image-three.prod.js'
 import type { Bundle, TargetEntry } from '../content/types'
-import { createScanFrame } from './createScanFrame'
 import { videoElementKey } from './prepareVideoElements'
 import { createContentHandle } from './renderers/createContentHandle'
 import type { ContentHandle } from './renderers/types'
@@ -9,6 +8,19 @@ import type { ContentHandle } from './renderers/types'
 type ARStageEventMap = {
   targetFound: [target: TargetEntry]
   targetLost: [target: TargetEntry]
+  // Fires once per target, the first time every one of its content
+  // handles finishes loading (most content has no real loading phase and
+  // is "ready" immediately — see ContentHandle.isLoading). Independent of
+  // found/lost: content loads once at bundle start and stays loaded, so
+  // this never re-fires for a target that's lost and re-found later.
+  targetContentReady: [target: TargetEntry]
+  targetContentProgress: [target: TargetEntry, progress: number | null]
+  // Global scanning state — fires on the 0->1 / 1->0 transition of how
+  // many targets are currently found, not per-target.
+  anyTargetFound: []
+  anyTargetLost: []
+  // Camera is live and the render loop has started.
+  ready: []
   error: [error: unknown]
 }
 
@@ -37,6 +49,7 @@ export interface ARStageStartOptions {
 interface TargetState {
   entry: TargetEntry
   handles: ContentHandle[]
+  contentReady: boolean
 }
 
 // Plain TS, no React. Owns the MindAR instance, the three.js
@@ -58,7 +71,6 @@ export class ARStage {
   private raycaster = new THREE.Raycaster()
   private interactionCanvas: HTMLCanvasElement | null = null
   private pointerDownHandler: ((event: PointerEvent) => void) | null = null
-  private removeScanFrame: (() => void) | null = null
   // True from the moment start() is called until mindar.start() has
   // settled (resolved or rejected). MindARThree.start() has no
   // cancellation support, so a dispose() that lands mid-flight (React 18
@@ -67,9 +79,15 @@ export class ARStage {
   // already landed and let the in-flight start() do the real teardown
   // once it resumes. This flag is how dispose() tells the two cases apart.
   private starting = false
+  private foundCount = 0
   private listeners: { [K in ARStageEvent]: Set<(...args: ARStageEventMap[K]) => void> } = {
     targetFound: new Set(),
     targetLost: new Set(),
+    targetContentReady: new Set(),
+    targetContentProgress: new Set(),
+    anyTargetFound: new Set(),
+    anyTargetLost: new Set(),
+    ready: new Set(),
     error: new Set(),
   }
 
@@ -116,14 +134,6 @@ export class ARStage {
       return originalAddEventListener(type, listener, addOptions)
     }) as typeof window.addEventListener
 
-    // MindAR's default scanning UI includes an animated sweeping scanline
-    // on top of the static corner-bracket frame. Swap in a frame-only
-    // version — same corner brackets, no sweep — via a custom element and
-    // selector; MindAR's own show()/hide() calls (driven by whether any
-    // target is found) drive this exactly like its default template.
-    const scanFrame = createScanFrame()
-    this.removeScanFrame = scanFrame.remove
-
     let mindar: MindARThree
     try {
       mindar = new MindARThree({
@@ -131,7 +141,10 @@ export class ARStage {
         imageTargetSrc: bundle.mindFile,
         filterMinCF: options.filterMinCF ?? null,
         filterBeta: options.filterBeta ?? null,
-        uiScanning: scanFrame.selector,
+        // ArHud (a real React overlay, driven by this class's own events)
+        // fully replaces MindAR's built-in scanning/found/lost UI now,
+        // with color-coded states its static template couldn't do.
+        uiScanning: 'no',
       })
     } finally {
       window.addEventListener = originalAddEventListener
@@ -177,14 +190,18 @@ export class ARStage {
           options.videoElements?.get(videoElementKey(target.index, contentIndex)),
         ),
       )
-      this.targets.set(target.index, { entry: target, handles })
+      this.targets.set(target.index, { entry: target, handles, contentReady: false })
 
       anchor.onTargetFound = () => {
         for (const handle of handles) handle.show()
+        this.foundCount += 1
+        if (this.foundCount === 1) this.emit('anyTargetFound')
         this.emit('targetFound', target)
       }
       anchor.onTargetLost = () => {
         for (const handle of handles) handle.hide()
+        this.foundCount -= 1
+        if (this.foundCount === 0) this.emit('anyTargetLost')
         this.emit('targetLost', target)
       }
     }
@@ -254,14 +271,32 @@ export class ARStage {
     this.clock.start()
     const tick = () => {
       const delta = this.clock.getDelta()
-      for (const { handles } of this.targets.values()) {
-        for (const handle of handles) handle.update?.(delta)
+      for (const targetState of this.targets.values()) {
+        for (const handle of targetState.handles) handle.update?.(delta)
+        if (!targetState.contentReady) this.pollContentLoading(targetState)
       }
       mindar.renderer.render(mindar.scene, mindar.camera)
       mindar.cssRenderer.render(mindar.cssScene, mindar.camera)
       this.renderLoopId = requestAnimationFrame(tick)
     }
     tick()
+    this.emit('ready')
+  }
+
+  // Content loads once, eagerly, at bundle start (not lazily on
+  // targetFound — see the class doc comment), so "ready" is tracked
+  // independently of found/lost and only ever fires once per target.
+  private pollContentLoading(targetState: TargetState) {
+    const loadingHandles = targetState.handles.filter((handle) => handle.isLoading?.())
+    if (loadingHandles.length === 0) {
+      targetState.contentReady = true
+      this.emit('targetContentReady', targetState.entry)
+      return
+    }
+    const progresses = loadingHandles.map((handle) => handle.loadProgress?.() ?? null)
+    const known = progresses.filter((p): p is number => p !== null)
+    const aggregate = known.length === progresses.length ? known.reduce((sum, p) => sum + p, 0) / known.length : null
+    this.emit('targetContentProgress', targetState.entry, aggregate)
   }
 
   private teardownMindAR() {
@@ -277,10 +312,6 @@ export class ARStage {
       this.interactionCanvas.removeEventListener('pointerdown', this.pointerDownHandler)
       this.interactionCanvas = null
       this.pointerDownHandler = null
-    }
-    if (this.removeScanFrame) {
-      this.removeScanFrame()
-      this.removeScanFrame = null
     }
     try {
       this.mindar?.stop()

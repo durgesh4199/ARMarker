@@ -1,0 +1,35 @@
+{
+  "id": "video-showcase",
+  "title": "Video Showcase",
+  "mindFile": "/targets/video-showcase.mind",
+  "targets": [
+    {
+      "index": 0,
+      "name": "video-small",
+      "content": [
+        {
+          "type": "video",
+          "src": "/videos/placeholder.mp4",
+          "alpha": "none",
+          "loop": true,
+          "position": [0, 0, 0.01],
+          "size": [0.8, 0.45]
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "name": "video-large",
+      "content": [
+        {
+          "type": "video",
+          "src": "/videos/placeholder.mp4",
+          "alpha": "none",
+          "loop": true,
+          "position": [0, 0, 0.01],
+          "size": [1.2, 0.675]
+        }
+      ]
+    }
+  ]
+}

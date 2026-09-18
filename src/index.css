@@ -1,23 +1,36 @@
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  color-scheme: light dark;
+  /* Fixed dark HUD theme, not prefers-color-scheme-adaptive: a live
+     camera feed clashes badly with a bright UI, and the design language
+     here (corner-bracket scanning frame, neon status colors) is a
+     deliberate one-theme identity, not a generic light/dark app. */
+  --bg: #0a0d0a;
+  --bg-elevated: #12160f;
+  --bg-elevated-hover: #171c14;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+
+  --text: #f5f7f2;
+  --text-secondary: #8a9385;
+  --text-tertiary: #5c6456;
+
+  --accent: #cfff3d;
+  --accent-dim: rgba(207, 255, 61, 0.35);
+  --accent-bg: rgba(207, 255, 61, 0.1);
+
+  --status-lost: #f0a94a;
+  --status-lost-bg: rgba(240, 169, 74, 0.12);
+
+  --font-sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Consolas, monospace;
+
+  color-scheme: dark;
   color: var(--text);
   background: var(--bg);
-  font: 16px/1.45 system-ui, 'Segoe UI', Roboto, sans-serif;
+  font: 16px/1.45 var(--font-sans);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-  }
 }
 
 * {
@@ -27,6 +40,7 @@
 body {
   margin: 0;
   min-height: 100svh;
+  background: var(--bg);
 }
 
 #root {
@@ -35,6 +49,10 @@ body {
 
 h1,
 h2 {
-  color: var(--text-h);
+  color: var(--text);
   font-weight: 500;
+}
+
+button {
+  font: inherit;
 }

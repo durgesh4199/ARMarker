@@ -47,6 +47,8 @@ export function createModelRenderer(item: ContentItem, anchor: THREE.Group, rend
 
   let disposed = false
   let visible = false
+  let loading = true
+  let progress: number | null = 0
   let mixer: THREE.AnimationMixer | null = null
   let action: THREE.AnimationAction | null = null
   const disposableMaterials = new Set<THREE.Material>()
@@ -58,6 +60,7 @@ export function createModelRenderer(item: ContentItem, anchor: THREE.Group, rend
   getGLTFLoader(renderer).load(
     item.src,
     (gltf) => {
+      loading = false
       if (disposed) return
 
       group.add(gltf.scene)
@@ -84,12 +87,23 @@ export function createModelRenderer(item: ContentItem, anchor: THREE.Group, rend
         }
       }
     },
-    undefined,
-    (error) => console.error(`failed to load model "${item.src}"`, error),
+    (event) => {
+      progress = event.total ? event.loaded / event.total : null
+    },
+    (error) => {
+      loading = false
+      console.error(`failed to load model "${item.src}"`, error)
+    },
   )
 
   return {
     object: group,
+    isLoading() {
+      return loading
+    },
+    loadProgress() {
+      return progress
+    },
     show() {
       visible = true
       group.visible = true

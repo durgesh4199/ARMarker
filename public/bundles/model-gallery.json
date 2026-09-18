@@ -1,0 +1,32 @@
+{
+  "id": "model-gallery",
+  "title": "Model Gallery",
+  "mindFile": "/targets/model-gallery.mind",
+  "targets": [
+    {
+      "index": 0,
+      "name": "animated-model",
+      "content": [
+        {
+          "type": "model",
+          "src": "/models/placeholder.glb",
+          "animation": "Spin",
+          "position": [0, 0, 0.1],
+          "scale": 1
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "name": "static-model",
+      "content": [
+        {
+          "type": "model",
+          "src": "/models/placeholder.glb",
+          "position": [0, 0, 0.1],
+          "scale": 1.2
+        }
+      ]
+    }
+  ]
+}

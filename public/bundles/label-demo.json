@@ -1,0 +1,31 @@
+{
+  "id": "label-demo",
+  "title": "Label Demo",
+  "mindFile": "/targets/label-demo.mind",
+  "targets": [
+    {
+      "index": 0,
+      "name": "label-a",
+      "content": [
+        {
+          "type": "dom",
+          "component": "Label",
+          "props": { "text": "Hello from marker A" },
+          "position": [0, 0, 0.1]
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "name": "label-b",
+      "content": [
+        {
+          "type": "dom",
+          "component": "Label",
+          "props": { "text": "Hello from marker B" },
+          "position": [0, 0, 0.1]
+        }
+      ]
+    }
+  ]
+}
