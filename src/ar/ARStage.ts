@@ -240,7 +240,7 @@ export class ARStage {
       while (node) {
         const handle = objectToHandle.get(node)
         if (handle) {
-          handle.onInteract?.()
+          handle.onInteract?.(hit.uv)
           return
         }
         node = node.parent

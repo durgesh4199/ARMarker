@@ -14,7 +14,12 @@ export interface ContentHandle {
   dispose(): void
   update?(deltaSeconds: number): void
   object?: THREE.Object3D
-  onInteract?(): void
+  // uv is the raycast hit's texture coordinate on `object` (present when
+  // the geometry provides UVs, e.g. a PlaneGeometry) — the game surface
+  // renderer uses it to hit-test the tap against its canvas-space
+  // content; a handle that doesn't need tap position (the model renderer)
+  // just ignores the argument.
+  onInteract?(uv?: THREE.Vector2): void
   // Omit both for content with no meaningful loading phase (dom renders
   // synchronously; video is already preloaded by the autoplay-unlock
   // step) — ARStage treats a handle without isLoading as always ready.

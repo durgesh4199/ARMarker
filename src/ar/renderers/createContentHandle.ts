@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import type { ContentItem } from '../../content/types'
 import { createDomRenderer } from './domRenderer'
+import { createGameSurfaceRenderer } from './gameSurfaceRenderer'
 import { createModelRenderer } from './modelRenderer'
 import type { ContentHandle } from './types'
 import { createVideoRenderer } from './videoRenderer'
@@ -30,5 +31,7 @@ export function createContentHandle(
         return noopHandle
       }
       return createDomRenderer(item, anchor, camera, domOverlayContainer)
+    case 'game':
+      return createGameSurfaceRenderer(item, anchor)
   }
 }

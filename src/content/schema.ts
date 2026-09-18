@@ -5,13 +5,14 @@ const vec3Schema = z.tuple([z.number(), z.number(), z.number()])
 
 const contentItemSchema = z
   .object({
-    type: z.enum(['model', 'video', 'dom']),
+    type: z.enum(['model', 'video', 'dom', 'game']),
     src: z.string().optional(),
     animation: z.string().optional(),
     alpha: z.enum(['none', 'packed']).optional(),
     loop: z.boolean().optional(),
     component: z.string().optional(),
     props: z.record(z.string(), z.unknown()).optional(),
+    gameId: z.string().optional(),
     position: vec3Schema.optional(),
     rotation: vec3Schema.optional(),
     scale: z.union([z.number(), vec3Schema]).optional(),
@@ -30,6 +31,9 @@ const contentItemSchema = z
     }
     if (item.type === 'dom' && !item.component) {
       ctx.addIssue({ code: 'custom', message: "content item of type 'dom' requires 'component'", path: ['component'] })
+    }
+    if (item.type === 'game' && !item.gameId) {
+      ctx.addIssue({ code: 'custom', message: "content item of type 'game' requires 'gameId'", path: ['gameId'] })
     }
   })
 

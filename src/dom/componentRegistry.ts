@@ -1,5 +1,7 @@
 import type { ComponentType } from 'react'
 import { Label } from './components/Label'
+import { SurfaceScore } from './components/SurfaceScore'
+import { TapGame } from './components/TapGame'
 
 // Maps a manifest ContentItem's `component` string to an actual React
 // component, so the manifest itself never contains JSX (CLAUDE.md
@@ -9,4 +11,6 @@ import { Label } from './components/Label'
 // component, not at this dispatch boundary.
 export const componentRegistry: Record<string, ComponentType<any>> = {
   Label,
+  TapGame,
+  SurfaceScore,
 }

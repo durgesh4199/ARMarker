@@ -5,24 +5,29 @@
   "targets": [
     {
       "index": 0,
-      "name": "label-a",
+      "name": "game-surface",
       "content": [
         {
+          "type": "game",
+          "gameId": "surface-a",
+          "position": [0, 0, 0.05],
+          "size": [1, 1]
+        },
+        {
           "type": "dom",
-          "component": "Label",
-          "props": { "text": "Hello from marker A" },
-          "position": [0, 0, 0.1]
+          "component": "SurfaceScore",
+          "props": { "gameId": "surface-a" },
+          "position": [0, 0.65, 0.05]
         }
       ]
     },
     {
       "index": 1,
-      "name": "label-b",
+      "name": "tap-game",
       "content": [
         {
           "type": "dom",
-          "component": "Label",
-          "props": { "text": "Hello from marker B" },
+          "component": "TapGame",
           "position": [0, 0, 0.1]
         }
       ]

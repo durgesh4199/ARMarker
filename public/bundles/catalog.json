@@ -27,7 +27,7 @@
   {
     "id": "label-demo",
     "title": "Label Demo",
-    "description": "Floating DOM UI, no 3D or video",
+    "description": "Interactive DOM overlay and 3D game surface demos",
     "icon": "tag",
     "manifestUrl": "/bundles/label-demo.json",
     "markerCount": 2
