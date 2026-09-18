@@ -219,12 +219,9 @@ with zero errors, which is as far as this can be checked without a phone.
 
 Same troubleshooting order as M1/M2, generalized further:
 
-1. **Marker feature quality first** — `targets/m2-demo/*.png` now use
-   client-provided branded artwork (not the stratified-shapes generator —
-   see the note below the M5 section for why and what changed). The
-   `model-gallery`/`video-showcase`/`label-demo` bundles still use
-   `scripts/generate-placeholder-marker.mjs`'s output, which fixed M1's
-   drift (see that script's doc comment).
+1. **Marker feature quality first** — all three `targets/m2-demo/*.png`
+   use the same stratified-shapes generator that fixed M1's drift (see
+   `scripts/generate-placeholder-marker.mjs`'s doc comment).
 2. **Pose smoothing is tunable without a redeploy**, via
    `?filterMinCF=&filterBeta=` query params — see `ARStage`'s
    `ARStageStartOptions` doc comment for what each one trades off.
@@ -326,39 +323,6 @@ CAMERA..." → "Point your camera at a marker" HUD transition and zero
 console/page errors throughout. Real per-bundle marker detection isn't
 checkable this way (see the "AR HUD" and M1-M4 sections above for why).
 **Not yet confirmed on physical hardware.**
-
-### Branded markers in `m2-demo` (Full Showcase)
-
-`targets/m2-demo/00-spin.png`, `01-static.png`, and `02-video.png` are now
-client-supplied branded artwork (a black-and-white "HUD/mandala" motif —
-corner squares, radiating arrow tips, concentric circles) rather than the
-generated placeholder pattern. The manifest, content mapping, and target
-`index` order are unchanged — only the physical marker images and the
-compiled `public/targets/m2-demo.mind` were replaced.
-
-These designs have near-exact 4-fold rotational and mirror symmetry, which
-risks feature-descriptor ambiguity in MindAR's matcher (pose jitter,
-flipping, or misidentifying which corner/arrow is which) — the opposite of
-CLAUDE.md's own trackability guidance ("asymmetric, non-repeating
-patterns"). Each image was treated before compiling: a small accent dot
-(1/2/3/4 dots, varying per position) was composited onto each of the 8
-most symmetric anchor features (4 corners, 4 arrow tips), breaking the
-rotational symmetry locally without altering the overall look. Verified
-before compiling:
-- Visually, at each anchor point, for seam artifacts or invisible dots
-  (candidate 2's corner/arrow shapes are hollow outlines, not solid fill,
-  so dot color is chosen adaptively per-spot rather than assumed white).
-- Via MindAR's own `OfflineCompiler`, keypoint counts increased modestly
-  after marking (e.g. one image went from 4479 to 4524 total keypoints),
-  confirming the dots register as genuine new local features rather than
-  no-ops.
-
-This is a one-time, design-specific fix (the anchor coordinates are
-hardcoded to this artwork's layout), not a general-purpose tool, so it
-isn't checked in as a script. **Tracking quality on these specific markers
-is not yet confirmed on physical hardware** — re-run the M1-M2 on-device
-checks above against the new `00-spin.png`/`01-static.png`/`02-video.png`
-before treating this bundle as done.
 
 ### Regenerating markers, bundles, models, and videos
 
