@@ -13,6 +13,7 @@ const contentItemSchema = z
     component: z.string().optional(),
     props: z.record(z.string(), z.unknown()).optional(),
     gameId: z.string().optional(),
+    variant: z.enum(['dot', 'runner']).optional(),
     position: vec3Schema.optional(),
     rotation: vec3Schema.optional(),
     scale: z.union([z.number(), vec3Schema]).optional(),

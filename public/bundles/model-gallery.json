@@ -30,6 +30,19 @@
           "src": "/models/placeholder.glb",
           "position": [0, 0, 0.1],
           "scale": 1.2
+        },
+        {
+          "type": "game",
+          "variant": "runner",
+          "gameId": "runner-a",
+          "position": [0, 1, 0.1],
+          "size": [1, 0.6]
+        },
+        {
+          "type": "dom",
+          "component": "SurfaceScore",
+          "props": { "gameId": "runner-a" },
+          "position": [0, 1.4, 0.1]
         }
       ]
     }

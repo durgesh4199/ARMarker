@@ -3,6 +3,7 @@ import type { ContentItem } from '../../content/types'
 import { createDomRenderer } from './domRenderer'
 import { createGameSurfaceRenderer } from './gameSurfaceRenderer'
 import { createModelRenderer } from './modelRenderer'
+import { createRunnerGameRenderer } from './runnerGameRenderer'
 import type { ContentHandle } from './types'
 import { createVideoRenderer } from './videoRenderer'
 
@@ -32,6 +33,6 @@ export function createContentHandle(
       }
       return createDomRenderer(item, anchor, camera, domOverlayContainer)
     case 'game':
-      return createGameSurfaceRenderer(item, anchor)
+      return item.variant === 'runner' ? createRunnerGameRenderer(item, anchor) : createGameSurfaceRenderer(item, anchor)
   }
 }

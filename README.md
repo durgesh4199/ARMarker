@@ -331,6 +331,35 @@ dot, and the color-match dot on `video-showcase`) glide rather than snap,
 and that the raycast-based marker-A variant registers taps reliably at
 an angle, not just straight-on.
 
+### Endless-runner mini-game
+
+A `variant: 'runner'` on a `'game'` content item (`model-gallery`'s
+second target, `gameId: "runner-a"`) is a Chrome-Dino-style game: tap to
+jump a character over obstacles scrolling in from the right; score is
+survival time. It's the same canvas-texture-plane technique as
+`game-surface` (`src/ar/renderers/canvasSurface.ts` now holds that setup
+shared by both, since a second variant made the duplication real) —
+raycast hit-testing for the tap, `SurfaceScore` paired via `gameId` for
+the score/game-over readout, no canvas text.
+
+Unlike the dot games, this needs *continuous* per-frame physics (gravity,
+obstacle scroll, collision), not an occasional eased lerp — its
+`update(deltaSeconds)` runs every frame regardless of animation state,
+the same way the model renderer's `AnimationMixer` does. A tap jumps only
+while grounded (no double-jump); on collision the scene freezes and
+`gameSurfaceStore`'s `gameOver` flag flips, which `SurfaceScore` reads to
+show "Game Over — tap to restart"; tapping again while over calls the
+same `startGame(gameId)` action a fresh load uses, resetting score and
+obstacles together.
+
+Verified with an isolated test exercising the real renderer: score climbs
+at the expected rate while alive, a forced long unattended run eventually
+collides and sets `gameOver`, score freezes once it does, and a
+post-game-over tap correctly resets both `gameOver` and score. **Not yet
+confirmed on physical hardware** — on a phone, confirm jump timing feels
+right (not too floaty/twitchy) and that obstacles are actually dodgeable
+at a normal viewing angle and distance from the marker.
+
 ## Testing M5 on a physical phone
 
 M5 replaces the M0-M4 single-bundle "Start AR" button with the full app

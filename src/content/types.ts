@@ -16,9 +16,14 @@ export interface ContentItem {
   props?: Record<string, unknown>
   // game — a tappable canvas-texture plane anchored in 3D (tilts with the
   // marker), unlike a 'dom' item's camera-facing screen-space overlay.
-  // gameId keys its score in gameSurfaceStore; pair it with a 'dom' item
-  // using the SurfaceScore component and the same gameId to display it.
+  // gameId keys its score (and, for 'runner', its game-over state) in
+  // gameSurfaceStore; pair it with a 'dom' item using the SurfaceScore
+  // component and the same gameId to display it. variant selects which
+  // mini-game the surface runs — 'dot' (default, omit it) is the
+  // touch-to-relocate game; 'runner' is the tap-to-jump-over-obstacles
+  // endless runner (see runnerGameRenderer.ts).
   gameId?: string
+  variant?: 'dot' | 'runner'
   // common
   position?: Vec3
   rotation?: Vec3

@@ -6,10 +6,13 @@ interface SurfaceScoreProps {
 
 // Pairs with a 'game' content item sharing the same gameId: that renderer
 // lives outside React (CLAUDE.md section 4) and draws no text onto its
-// canvas texture (section 5.3), so the score is read here instead, via
-// the store the two sides share.
+// canvas texture (section 5.3), so the score — and, for the 'runner'
+// variant, the game-over/restart prompt — is read here instead, via the
+// store the two sides share. The 'dot' variant never sets gameOver, so
+// this line just never appears for those games.
 export function SurfaceScore({ gameId }: SurfaceScoreProps) {
   const score = useGameSurfaceStore((s) => s.scores[gameId] ?? 0)
+  const gameOver = useGameSurfaceStore((s) => s.gameOver[gameId] ?? false)
 
   return (
     <div
@@ -24,6 +27,7 @@ export function SurfaceScore({ gameId }: SurfaceScoreProps) {
       }}
     >
       Score: {score}
+      {gameOver && <span style={{ color: '#f87171' }}> · Game Over — tap to restart</span>}
     </div>
   )
 }

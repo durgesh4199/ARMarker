@@ -1,10 +1,9 @@
 import * as THREE from 'three'
 import type { ContentItem } from '../../content/types'
 import { useGameSurfaceStore } from '../gameSurfaceStore'
-import { applyTransform } from './applyTransform'
+import { createCanvasSurface } from './canvasSurface'
 import type { ContentHandle } from './types'
 
-const CANVAS_WIDTH = 256
 const DOT_COLOR = '#22d3ee'
 const BG_COLOR = 'rgba(10, 12, 20, 0.85)'
 const DOT_RADIUS_FRACTION = 0.09
@@ -15,39 +14,23 @@ function easeOutCubic(t: number) {
 }
 
 // The "true 3D" counterpart to the DOM overlay TapGame: a canvas-texture
-// plane that's a real anchored Object3D, so unlike a screen-space-
-// projected 'dom' item it tilts in perspective with the marker. That
-// means it can't take real DOM pointer events, so it reuses the same
-// raycast hit-testing ARStage already built for the model renderer's
-// tap-to-interact, using the hit's uv to find the tap in canvas space.
-// No text is drawn on the canvas (CLAUDE.md section 5.3 is specifically
-// about UI text) — the score readout is a separate paired 'dom' item
-// (SurfaceScore) reading the same gameId from gameSurfaceStore. A tap
-// doesn't relocate the dot instantly — it eases to its new spot over
-// MOVE_DURATION, redrawn each frame from update() (see the dot/fromDot/
-// toDot/animating state below).
+// plane (see canvasSurface.ts) that's a real anchored Object3D, so unlike
+// a screen-space-projected 'dom' item it tilts in perspective with the
+// marker. That means it can't take real DOM pointer events, so it reuses
+// the same raycast hit-testing ARStage already built for the model
+// renderer's tap-to-interact, using the hit's uv to find the tap in
+// canvas space. No text is drawn on the canvas (CLAUDE.md section 5.3 is
+// specifically about UI text) — the score readout is a separate paired
+// 'dom' item (SurfaceScore) reading the same gameId from
+// gameSurfaceStore. A tap doesn't relocate the dot instantly — it eases
+// to its new spot over MOVE_DURATION, redrawn each frame from update()
+// (see the dot/fromDot/toDot/animating state below).
 export function createGameSurfaceRenderer(item: ContentItem, anchor: THREE.Group): ContentHandle {
   if (!item.gameId) throw new Error("content item of type 'game' missing 'gameId' (the manifest schema should have caught this)")
   const gameId = item.gameId
 
-  const [width, height] = item.size ?? [1, 1]
-  const canvasWidth = CANVAS_WIDTH
-  const canvasHeight = Math.round(CANVAS_WIDTH * (height / width))
-
-  const canvas = document.createElement('canvas')
-  canvas.width = canvasWidth
-  canvas.height = canvasHeight
-  const ctx = canvas.getContext('2d')
-  if (!ctx) throw new Error('2D canvas context unavailable for game surface')
-
-  const texture = new THREE.CanvasTexture(canvas)
-  texture.colorSpace = THREE.SRGBColorSpace
-
-  const geometry = new THREE.PlaneGeometry(width, height)
-  const material = new THREE.MeshBasicMaterial({ map: texture })
-  const mesh = new THREE.Mesh(geometry, material)
-  applyTransform(mesh, item)
-  anchor.add(mesh)
+  const surface = createCanvasSurface(item, anchor)
+  const { ctx, canvasWidth, canvasHeight } = surface
 
   const dotRadius = canvasWidth * DOT_RADIUS_FRACTION
 
@@ -69,14 +52,14 @@ export function createGameSurfaceRenderer(item: ContentItem, anchor: THREE.Group
   let animating = false
 
   function draw() {
-    ctx!.clearRect(0, 0, canvasWidth, canvasHeight)
-    ctx!.fillStyle = BG_COLOR
-    ctx!.fillRect(0, 0, canvasWidth, canvasHeight)
-    ctx!.beginPath()
-    ctx!.arc(dot.x, dot.y, dotRadius, 0, Math.PI * 2)
-    ctx!.fillStyle = DOT_COLOR
-    ctx!.fill()
-    texture.needsUpdate = true
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight)
+    ctx.fillStyle = BG_COLOR
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight)
+    ctx.beginPath()
+    ctx.arc(dot.x, dot.y, dotRadius, 0, Math.PI * 2)
+    ctx.fillStyle = DOT_COLOR
+    ctx.fill()
+    surface.markDirty()
   }
   draw()
 
@@ -87,7 +70,7 @@ export function createGameSurfaceRenderer(item: ContentItem, anchor: THREE.Group
   useGameSurfaceStore.getState().startGame(gameId)
 
   return {
-    object: mesh,
+    object: surface.mesh,
     // MindAR toggles the anchor group's own visibility on found/lost (see
     // ARStage's comment on why an invisible object naturally skips
     // raycasting) — nothing else needs to happen here, same as the video
@@ -124,10 +107,7 @@ export function createGameSurfaceRenderer(item: ContentItem, anchor: THREE.Group
       if (t >= 1) animating = false
     },
     dispose() {
-      texture.dispose()
-      geometry.dispose()
-      material.dispose()
-      mesh.removeFromParent()
+      surface.dispose()
     },
   }
 }

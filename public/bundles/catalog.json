@@ -11,7 +11,7 @@
   {
     "id": "model-gallery",
     "title": "Model Gallery",
-    "description": "Animated and static 3D models, plus a tap-dot game",
+    "description": "Animated and static 3D models, plus a tap-dot and an endless-runner game",
     "icon": "cube",
     "manifestUrl": "/bundles/model-gallery.json",
     "markerCount": 2
