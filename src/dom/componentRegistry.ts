@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react'
+import { ColorMatchGame } from './components/ColorMatchGame'
 import { Label } from './components/Label'
 import { SurfaceScore } from './components/SurfaceScore'
 import { TapGame } from './components/TapGame'
@@ -13,4 +14,5 @@ export const componentRegistry: Record<string, ComponentType<any>> = {
   Label,
   TapGame,
   SurfaceScore,
+  ColorMatchGame,
 }

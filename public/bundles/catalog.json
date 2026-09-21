@@ -11,7 +11,7 @@
   {
     "id": "model-gallery",
     "title": "Model Gallery",
-    "description": "Animated and static 3D models",
+    "description": "Animated and static 3D models, plus a tap-dot game",
     "icon": "cube",
     "manifestUrl": "/bundles/model-gallery.json",
     "markerCount": 2
@@ -19,7 +19,7 @@
   {
     "id": "video-showcase",
     "title": "Video Showcase",
-    "description": "Looping video anchored to a marker",
+    "description": "Looping video anchored to a marker, plus a color-match game",
     "icon": "play",
     "manifestUrl": "/bundles/video-showcase.json",
     "markerCount": 2

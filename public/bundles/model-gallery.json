@@ -13,6 +13,11 @@
           "animation": "Spin",
           "position": [0, 0, 0.1],
           "scale": 1
+        },
+        {
+          "type": "dom",
+          "component": "TapGame",
+          "position": [0, 0.9, 0.1]
         }
       ]
     },

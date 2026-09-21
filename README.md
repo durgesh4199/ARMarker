@@ -282,6 +282,55 @@ expectations for the anchor's position and camera setup, and that
 `hide()`/pre-`show()` both correctly set `display: none`.
 **Not yet confirmed on physical hardware.**
 
+### Touch-dot mini-games
+
+A `'game'` `ContentItem` type joins model/video/dom: a tappable dot that,
+on a correct tap, moves to a new spot with a smooth (eased, not instant)
+transition. Two rendering techniques, both demoed on `label-demo`:
+
+- **`game-surface`** (marker A, `type: 'game'`, `gameId`) — a real
+  anchored `THREE.Mesh` with a canvas-texture material, so it tilts in
+  perspective with the marker like the model renderer's content does.
+  Taps are hit-tested via the same raycasting `ARStage` already built for
+  the model renderer's tap-to-interact (`onInteract` now takes the hit's
+  `uv`). No text is drawn on the canvas (section 5.3) — score renders via
+  a paired `'dom'` item (`SurfaceScore`) sharing a `gameId` through
+  `gameSurfaceStore` (Zustand), mirroring how `debugStore` bridges
+  `ARStage` to React. Since there's no CSS to animate, a tap starts an
+  eased lerp that `update()` advances and redraws every frame.
+- **`TapGame`** (marker B, `'dom'` component) — a plain DOM overlay like
+  `Label`, but interactive (`pointerEvents: 'auto'` on its own root).
+  Simpler: no raycasting needed, since taps land on a real DOM element.
+  Positioned via `transform: translate(...)`, not `left`/`top` (section
+  7's transform/opacity-only rule applies to any overlay that renders
+  every frame the AR content underneath is live, not just page
+  transitions), with a plain CSS transition doing the easing.
+
+`ColorMatchGame` (also `'dom'`, added to `video-showcase`'s first
+target) is a Simon-says variant of `TapGame`: the dot cycles through a 4-
+color palette on a timer, and only a tap while it's showing the round's
+target color (shown in the header) scores and relocates it — a
+wrong-color tap flashes red and doesn't move the dot, so mashing taps
+isn't a strategy.
+
+`TapGame` is also duplicated onto `model-gallery`'s first target, offset
+above the model (`position: [0, 0.9, 0.1]`) so the two don't visually
+overlap — proof that "add this game to another bundle" is just a
+content-item JSON edit, no new marker art or `.mind` recompile, per
+CLAUDE.md section 3.
+
+Verified with isolated tests exercising the real code: `gameSurfaceRenderer.ts`
+doesn't move before any `update()` tick, is genuinely partway through
+mid-transition, and settles at a clearly different final position;
+`ColorMatchGame` was verified end-to-end in a real (non-jsdom) browser —
+wrong-color taps don't score and show/clear the flash correctly,
+correct-color taps score, relocate (new `transform`), and pick a new
+target color. **Not yet confirmed on physical hardware** — on a phone,
+confirm all three (marker A's tilting 3D surface, marker B's flat DOM
+dot, and the color-match dot on `video-showcase`) glide rather than snap,
+and that the raycast-based marker-A variant registers taps reliably at
+an angle, not just straight-on.
+
 ## Testing M5 on a physical phone
 
 M5 replaces the M0-M4 single-bundle "Start AR" button with the full app
