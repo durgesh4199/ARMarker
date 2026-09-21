@@ -14,7 +14,11 @@ const GROUND_Y_FRACTION = 0.82
 const CHAR_SIZE_FRACTION = 0.13
 const CHAR_X_FRACTION = 0.15
 const GRAVITY = 1400 // canvas px/s^2
-const JUMP_VELOCITY = -320 // canvas px/s, upward (negative y)
+// height = v^2/(2*GRAVITY), air time = 2*|v|/GRAVITY — at -420 that's a
+// ~63px-tall, ~0.6s hop (was -320/~37px/~0.46s, which read as barely
+// clearing anything). Tune both together if this still isn't enough:
+// GRAVITY down also stretches the arc without needing more velocity.
+const JUMP_VELOCITY = -420 // canvas px/s, upward (negative y)
 const BASE_SPEED = 140 // canvas px/s, obstacles scrolling left
 const SPEED_RAMP = 6 // px/s of extra speed per second survived
 const MAX_SPEED = 320
